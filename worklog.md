@@ -275,3 +275,45 @@ Work Log:
 Stage Summary:
 - Project is fully database-free (no prisma, no sqlite, no db scripts, no env vars); package.json + lockfile clean.
 - Browser tab title is now "AWS | ATOM LEARN".
+
+---
+Task ID: 11
+Agent: main (orchestrator)
+Task: Leftbar 100% height + sticky (fixed); GLOBAL INFRASTRUCTURE map — replace ARC STORM with UNDERSEA CABLES (real cable data); right column — ALL REGIONS above LIVE OPS FEED; AZ detail panel bottom-right of map (opposite TRACE).
+
+Work Log:
+- LEFTBAR (page.tsx + service-nav.tsx): nav rail wrapper is now `lg:sticky lg:top-0 lg:h-screen lg:-mt-5` (sticky within the full-height flex row = fixed-position behavior); desktop nav itself changed from `sticky top-4 max-h-[calc(100vh-2rem)]` to `h-full`. Verified: collapsed (60px) and expanded (248px) both span 0→viewport-height exactly and stay pinned at top:0 while scrolled (measured via getBoundingClientRect before/after scroll). Mobile horizontal chips unchanged.
+- UNDERSEA CABLES (global-infrastructure.tsx): removed storm state + ARC STORM button (Arcs component simplified — storm prop deleted). New SUBMARINE_CABLES data: 15 REAL cables with real landing-point routes — MAREA (Virginia Beach→Bilbao), GRACE HOPPER (NY→Bude→Bilbao), SEA-ME-WE 5 (Marseille→Suez→Jeddah→Djibouti→Mumbai→Matara→Singapore), IAX, APG (Chikura→Busan→Shanghai→HK→Singapore), JUPITER, FASTER, NCP, SOUTHERN CROSS (Sydney→Auckland→Suva→Hawaii→Oregon), INDIGO, EASSy, SACS, EQUIANO, 2AFRICA, C-LION1. New UnderseaCables 3D component: CatmullRom through landing points → sampled+re-projected onto sphere radius R+0.006 so lines hug the surface (no fly-over), thin mint tubes (opacity 0.5 additive) + travelling data-pulse dot per cable. Toggle button "UNDERSEA CABLES ON/OFF" (Waves icon, mint accent — toggleBtn extended to aws/magenta/mint accents). Legend gained "SUBMARINE CABLE" entry.
+- RIGHT COLUMN: order is now REGION UPLINK → ALL REGIONS → LIVE OPS FEED (ALL REGIONS moved above feed).
+- AZ DETAIL PANEL: bottom-right of the globe (absolute bottom-2.5 right-2.5 — same right edge as TRACE at top-2.5 right-2.5, i.e. directly opposite). Shows the selected region's AZs (us-east-1a…f etc.) with mint status LED (pulse when hot>72%), truncated AZ id, live utilization bar + % — deterministic base per region code + wobble driven by the 1.1s ping ticker, max-h-[104px] cyber-scroll. Updates on region selection (verified: Tokyo → ap-northeast-1a–d, 4 rows; TRACE → 35.7°/139.7°; REGION UPLINK → TARGET: AP-NORTHEAST-1).
+- Verification: bun run lint PASS (0 problems); bunx tsc --noEmit clean for src (only pre-existing skills/ noise); Agent Browser E2E — cables ON/OFF toggle both directions (aria-pressed), drag-rotated to Atlantic + Pacific views and confirmed mint cable lines hugging the sphere (APG/trans-pacific/Southern Cross visible), AZ panel positioned bottom-1028/right-1048 vs map bottom-1038 (flush + aligned with TRACE right edge), right column order confirmed in DOM, mobile 390px: no horizontal overflow (scrollW=390) and AZ panel/legend fit without overlap, zero page errors, dev.log all 200s. Screenshots saved (desktop cables-on/atlantic/pacific/final + mobile).
+
+---
+Task ID: 12
+Agent: main (orchestrator)
+Task: Sidebar inset tuning (match header-card top padding → 96vh height with 2vh top/bottom insets) + fix shrink-mode active tile styling.
+
+Work Log:
+- page.tsx nav wrapper: `lg:sticky lg:top-0 lg:h-screen lg:-mt-5` → `lg:sticky lg:top-[2vh] lg:h-[96vh] lg:-mt-1.5`. Rationale: %-based top/height resolved against the flex parent (measured 94.11%/3.67% — wrong base), so switched to viewport units; the -mt-1.5 pulls the natural position (20px container padding) above the 2vh threshold so sticky pins immediately. Measured result: top 2.00% (18px), height 96.00%, bottom gap 2.00% (18px) — stays pinned at those values while scrolled (verified before/after scrollY=400). Top aligns with the header card row (py-5 ≈ 2vh).
+- service-nav.tsx shrink-mode active fix (was: outer aws border + inner icon-tile border + 3px left marker bar = cluttered double-box, per user screenshot): active marker is now rendered per mode — expanded keeps the 3px left bar (layoutId preserved), shrink mode renders a 2px full-width TOP accent line instead; icon tile in shrink-active drops its own border/bg (`border-transparent bg-transparent`) so exactly ONE glowing aws box shows per active item. Inactive tiles unchanged (border-foreground/15 bg-black/30); expanded-active keeps icon tile border-aws/60 bg-black/30.
+- Verification: bun run lint PASS (0 problems); bunx tsc --noEmit clean for src (only pre-existing skills/ noise); Agent Browser — measured 2/96/2 split exact + pinned on scroll (collapsed AND expanded states), zoomed screenshot confirms single-box shrink-active tile, expanded rail re-verified with left marker + labels, zero page errors, mobile 390px scrollWidth=390 (no overflow — changes are lg:-only), dev.log all 200s.
+
+Stage Summary:
+- Sidebar now sits at a fixed 2vh top / 2vh bottom inset with exactly 96vh height (sticky = fixed behavior), visually aligned with the module header card.
+- Shrink-mode active module is a single glowing aws tile with a top accent line (no more double-border + side-bar clutter); expanded mode unchanged (left marker + labels).
+
+---
+Task ID: 13
+Agent: main (orchestrator)
+Task: Redraw undersea cables properly — match the uploaded cable-map reference (ocean/coastline paths), NEVER cross land, and hide UPLINK BEAM while cables are shown.
+
+Work Log:
+- Rewrote SUBMARINE_CABLES in src/components/services/global-infrastructure.tsx: all 15 cables now use DENSE hand-plotted ocean waypoints (10-70 per cable) that follow real shipping-lane routes and hug coastlines instead of endpoint-to-endpoint great-circle chords (which cut across landmasses). Examples: SEA-ME-WE 5 threads Gibraltar-class Med corridor → Suez canal zone → Red Sea → Bab-el-Mandeb → Arabian Sea → Mumbai → around Sri Lanka → Malacca Strait → Singapore; APG rounds Kyushu south + Kanmon wedge → Busan → Yellow Sea → down the China/Vietnam coast → Gulf of Thailand → east of Malay peninsula → Singapore; INDIGO rerouted to the real INDIGO-West track (Malacca → around Sumatra NW tip → west coast → south of Java → Perth) avoiding the too-narrow modelled Sunda Strait; EASSy runs offshore through the Mozambique Channel; GRACE HOPPER/MAREA descend the Bay-of-Biscay-mouth chord (the coarse model's N-Spain coast); 2AFRICA dips through the Gibraltar strait corridor then parallels the West African bulge offshore with the Gulf-of-Guinea Lagos dip; SOUTHERN CROSS exits Auckland via the Tasman-side coast wedge.
+- Built a throwaway validator (/home/z/check-cables.mts, deleted after use) that extracted the component's own LAND_POLYS + reused the exact runtime math (latLonToVec3 → CatmullRomCurve3 tension 0.4 → getPoints(200) → sphere re-projection → inverse to lat/lon → isLand()) and iterated waypoints until ALL 15 CABLES = 0 land hits (only exemption: the Suez canal transit corridor, lat 28.3-31.8 / lon 32.15-33.15, where cables legitimately thread the canal — matching the reference map). Fixes driven by validator output: Malacca strait pinch (both cables), Korea-strait/Kanmon wedge (APG), NZ Auckland west-coast wedge (SOUTHERN CROSS), Sunda strait (avoided entirely), Mozambique coast (EASSy), Guinea coast + Dakar (EQUIANO/2AFRICA), Gibraltar dip (2AFRICA), LA endpoint nudged offshore (JUPITER), WA coast (INDIGO).
+- UnderseaCables rendering upgraded for the longer paths: getPoints 160→220, TubeGeometry segments 180→260, radius 0.0042→0.0046, opacity 0.5→0.55.
+- UPLINK BEAM hide: RegionMarker gained hideBeam prop — the magenta vertical beam cylinder now renders only when `selected && !hideBeam`; GlobeScene passes hideBeam={showCables}; legend entry reads "SELECTED REGION" while cables are on (reverts to "SELECTED + UPLINK BEAM" when off).
+- Verification: bun run lint PASS (0 problems); bunx tsc --noEmit clean for src; Agent Browser E2E — toggled UNDERSEA CABLES ON (aria-pressed + mint border), drag-rotated through Atlantic → West Africa → Indian Ocean → West Pacific views: transatlantic arcs over open ocean, West-African bulge + SACS + APG coastal routes hug the dotted coastlines with zero land overlap, travelling pulses visible; UPLINK BEAM confirmed HIDDEN with cables ON (magenta selected node shows only ping rings) and RESTORED after toggling cables OFF (beam clearly visible again); mobile 390px scrollWidth=390 (no overflow); zero page errors (only pre-existing THREE.Clock deprecation warning); dev.log all 200s. Screenshots: /home/z/shots/cables-{atlantic,europe,africa,indian,indian2,asia}.png + beam-restored.png + mobile-check.png.
+
+Stage Summary:
+- Cables now behave like a real cable map (reference image): dense coastline-hugging ocean paths, mathematically guaranteed zero ground crossings against the same land polygons the globe renders, Suez transit preserved.
+- UPLINK BEAM auto-hides whenever UNDERSEA CABLES is ON and returns when toggled OFF; legend reflects the mode.

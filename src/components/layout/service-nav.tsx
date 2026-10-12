@@ -82,7 +82,7 @@ export function ServiceNav({ activeId, onSelect }: ServiceNavProps) {
         initial={false}
         animate={{ width: railWidth }}
         transition={{ type: "spring", stiffness: 260, damping: 28 }}
-        className="hidden lg:flex relative z-20 flex-col gap-1 glass-deep corner-brackets p-2.5 shrink-0 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-visible cyber-scroll"
+        className="hidden lg:flex relative z-20 flex-col gap-1 glass-deep corner-brackets p-2.5 shrink-0 h-full overflow-y-auto overflow-x-visible cyber-scroll"
         aria-label="Service modules"
       >
         {/* header row: title + expand/collapse toggle */}
@@ -139,19 +139,28 @@ export function ServiceNav({ activeId, onSelect }: ServiceNavProps) {
               aria-current={active ? "page" : undefined}
               aria-label={`${s.name} — ${s.codename}`}
             >
-              {active && (
+              {active && expanded && (
                 <motion.span
                   layoutId="nav-rail-marker"
                   className="absolute left-0 top-0 bottom-0 w-[3px] bg-aws box-glow"
                   aria-hidden="true"
                 />
               )}
+              {active && !expanded && (
+                <motion.span
+                  layoutId="nav-rail-marker"
+                  className="absolute left-0 right-0 top-0 h-[2px] bg-aws box-glow"
+                  aria-hidden="true"
+                />
+              )}
               <span
                 className={cn(
-                  "flex items-center justify-center w-8 h-8 border shrink-0 transition-colors bg-black/30",
+                  "flex items-center justify-center w-8 h-8 border shrink-0 transition-colors",
                   active
-                    ? "border-aws/60"
-                    : "border-foreground/15 group-hover:border-aws/40"
+                    ? expanded
+                      ? "border-aws/60 bg-black/30"
+                      : "border-transparent bg-transparent"
+                    : "border-foreground/15 group-hover:border-aws/40 bg-black/30"
                 )}
               >
                 <AWSIconTile

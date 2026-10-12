@@ -44,8 +44,8 @@ export default function Home() {
 
       <main className="flex-1 flex flex-col" role="main">
         <div className="flex-1 w-full px-3 sm:px-5 py-5 flex flex-col lg:flex-row gap-5 items-start">
-          {/* NAV RAIL */}
-          <div className="w-full lg:w-auto">
+          {/* NAV RAIL — 96vh height, fixed with 2vh top / 2vh bottom inset (desktop) */}
+          <div className="w-full lg:w-auto lg:sticky lg:top-[2vh] lg:h-[96vh] lg:-mt-1.5">
             <ServiceNav activeId={activeId} onSelect={select} />
           </div>
 

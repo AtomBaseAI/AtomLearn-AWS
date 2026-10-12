@@ -9,7 +9,7 @@ import { GlassPanel } from "@/components/shared/glass-panel";
 import { Callout } from "@/components/shared/callout";
 import { StatChip } from "@/components/shared/typography";
 import { AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
-import { Globe2, RotateCw, Zap, MapPin, ChevronRight, Activity, Wifi, Server, ShieldAlert } from "lucide-react";
+import { Globe2, RotateCw, Waves, MapPin, ChevronRight, Activity, Wifi, Server, ShieldAlert } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* DATA                                                                */
@@ -75,6 +75,126 @@ const ARC_PAIRS: Array<[string, string]> = [
   ["sa-east-1", "af-south-1"],
   ["ca-central-1", "eu-north-1"],
   ["ap-east-1", "ap-southeast-3"],
+];
+
+/**
+ * Real major submarine cables — dense ocean waypoints hand-plotted to hug
+ * coastlines and NEVER cross land (validated programmatically against the
+ * same LAND_POLYS the dotted globe renders). Every waypoint sits in open
+ * water; curves follow shipping-lane arcs like a real cable map.
+ */
+const SUBMARINE_CABLES: Array<{ name: string; pts: Array<[number, number]> }> = [
+  // Trans-Atlantic
+  { name: "MAREA", pts: [
+    [36.7, -75.6], [38.8, -71.8], [41.2, -64.5], [43.2, -56.5], [44.8, -47.5],
+    [45.3, -38.5], [45.0, -30.0], [44.6, -22.0], [44.9, -14.5], [45.0, -11.0], [44.0, -9.6],
+  ] }, // Virginia Beach → Bilbao
+  { name: "GRACE HOPPER", pts: [
+    [40.3, -73.4], [40.0, -68.5], [40.6, -60.5], [41.8, -52.5], [43.5, -45.0], [45.5, -36.5],
+    [47.2, -29.0], [48.7, -22.0], [49.6, -15.5], [50.0, -10.5], [49.9, -7.5], [49.8, -6.0],
+    [49.4, -6.1], [48.7, -7.2], [47.6, -8.2], [46.4, -9.0], [45.3, -9.5], [44.6, -9.9],
+  ] }, // New York → Bude → Bilbao
+  // Europe ↔ Asia (via Mediterranean / Red Sea / India)
+  { name: "SEA-ME-WE 5", pts: [
+    [43.2, 5.1], [42.6, 6.6], [41.6, 8.4], [40.0, 9.9], [38.6, 11.2], [37.2, 11.4],
+    [36.3, 13.0], [35.9, 15.2], [35.5, 17.6], [34.9, 20.5], [34.6, 23.2], [33.9, 26.3],
+    [31.9, 29.8], [31.3, 31.5], [30.4, 32.35], [30.0, 32.5], [29.6, 32.72], [29.2, 32.9],
+    [28.8, 33.1], [28.4, 33.35], [27.0, 34.1], [25.0, 35.8], [23.0, 37.0], [21.6, 39.0],
+    [19.5, 39.0], [17.0, 39.7], [14.5, 41.5], [12.9, 42.9], [12.6, 43.5], [12.5, 45.5],
+    [12.3, 48.0], [12.2, 50.5], [11.5, 53.0], [10.0, 55.5], [8.5, 58.5], [7.5, 61.5],
+    [7.0, 64.5], [7.2, 67.5], [8.5, 70.0], [10.5, 71.5], [13.0, 72.0], [15.8, 72.2],
+    [18.9, 72.5], [17.2, 72.4], [14.5, 72.7], [12.0, 73.3], [10.0, 74.3], [8.2, 75.8],
+    [6.6, 77.5], [5.9, 79.3], [5.8, 80.4], [5.6, 83.0], [5.3, 86.0], [5.1, 89.0],
+    [5.5, 92.0], [6.0, 94.6], [6.3, 96.3], [6.5, 97.4], [5.9, 97.9], [5.2, 97.95],
+    [4.7, 98.35], [4.2, 98.9], [3.8, 99.3], [3.0, 100.55], [2.4, 100.7], [1.9, 101.5],
+    [1.5, 102.7], [1.29, 103.95],
+  ] }, // Marseille → Suez → Jeddah → Djibouti → Mumbai → Matara → Singapore
+  { name: "IAX", pts: [
+    [18.9, 72.5], [16.5, 72.15], [14.0, 72.05], [11.5, 72.25], [9.0, 72.6], [6.5, 72.95],
+    [4.2, 73.5], [4.7, 75.4], [5.3, 77.3], [5.7, 78.9], [6.1, 79.4], [6.93, 79.5],
+    [6.15, 79.55], [5.85, 79.9], [5.8, 80.2], [5.85, 81.8], [5.55, 84.5], [5.35, 87.5],
+    [5.6, 90.8], [6.05, 93.9], [6.35, 96.0], [6.1, 97.3], [5.8, 97.6], [5.0, 97.9],
+    [4.5, 98.3], [4.0, 98.9], [3.35, 99.4],
+    [2.8, 100.2], [2.25, 100.85], [1.7, 101.85], [1.38, 103.0], [1.29, 103.95],
+  ] }, // Mumbai → Malé → Colombo → Singapore
+  // Asia-Pacific
+  { name: "APG", pts: [
+    [34.9, 139.95], [34.4, 138.5], [33.7, 136.3], [32.9, 133.9], [32.6, 131.5], [33.3, 130.7],
+    [34.0, 129.95], [34.6, 129.4], [35.05, 129.3], [34.3, 127.5], [33.5, 125.5], [32.8, 123.5],
+    [32.0, 122.0], [31.62, 121.85], [31.1, 121.95], [29.5, 121.8], [27.0, 121.0], [25.3, 120.0],
+    [24.0, 119.4], [22.9, 117.8],
+    [22.28, 114.16], [21.0, 113.4], [19.0, 112.4], [17.0, 109.5], [15.0, 109.6], [13.0, 109.4],
+    [11.0, 108.6], [9.5, 106.4], [8.0, 105.2], [6.5, 104.6], [4.8, 104.5], [3.2, 104.3],
+    [2.0, 104.15], [1.5, 103.9], [1.29, 103.95],
+  ] }, // Chikura → Busan → Shanghai → Hong Kong → Singapore
+  { name: "JUPITER", pts: [
+    [34.9, 139.95], [35.6, 143.2], [37.2, 148.3], [39.2, 153.8], [41.2, 159.8], [43.2, 166.3],
+    [44.6, 173.2], [45.0, -179.5], [44.4, -171.0], [43.2, -163.0], [41.5, -155.0], [39.5, -147.0],
+    [37.5, -139.0], [35.8, -131.5], [34.5, -125.0], [34.0, -120.0], [33.9, -119.3], [33.8, -118.7],
+  ] }, // Maruyama → Los Angeles
+  { name: "FASTER", pts: [
+    [34.9, 139.9], [35.9, 143.8], [37.7, 149.3], [39.8, 155.3], [41.8, 161.8], [43.7, 168.3],
+    [44.9, 175.2], [45.6, -178.0], [45.9, -169.0], [46.1, -160.0], [46.2, -151.0], [45.9, -142.0],
+    [45.5, -133.0], [45.3, -126.5], [45.2, -124.1],
+  ] }, // Chikura → Pacific City, OR
+  { name: "NCP", pts: [
+    [31.62, 121.85], [32.2, 123.0], [33.0, 125.2], [33.8, 127.2], [34.3, 128.6], [35.0, 129.3],
+    [34.0, 129.9], [33.3, 131.6], [33.0, 134.6], [33.5, 139.2], [34.6, 145.2], [36.4, 152.2],
+    [38.4, 159.6], [40.5, 167.2], [42.5, 174.6], [43.9, -178.0], [44.6, -169.0], [45.0, -160.0],
+    [45.3, -151.0], [45.3, -142.0], [45.2, -133.2], [45.2, -126.3], [45.2, -124.1],
+  ] }, // Shanghai → Busan → Pacific City, OR
+  { name: "SOUTHERN CROSS", pts: [
+    [-33.9, 151.5], [-34.6, 153.8], [-35.8, 157.3], [-36.7, 161.0], [-37.0, 165.5], [-36.9, 170.3],
+    [-36.85, 173.2], [-36.5, 172.8], [-36.2, 172.6], [-34.8, 172.9], [-33.0, 174.2], [-30.8, 176.2],
+    [-27.0, 178.6], [-23.5, -179.5],
+    [-20.5, -178.5], [-18.14, 178.44], [-16.5, -177.8], [-12.5, -172.0], [-8.0, -166.0], [-3.5, -160.0],
+    [1.5, -154.0], [6.5, -149.0], [11.5, -145.0], [16.5, -150.5], [19.5, -154.5], [21.47, -158.16],
+    [24.0, -152.5], [27.5, -147.0], [31.0, -141.5], [34.5, -136.0], [37.5, -130.5], [40.0, -126.0],
+    [42.5, -124.9], [44.3, -124.3], [45.2, -124.05],
+  ] }, // Sydney → Auckland → Suva → Hawaii → Oregon
+  { name: "INDIGO", pts: [
+    [1.29, 103.95], [1.6, 102.85], [2.0, 101.65], [2.5, 100.85], [3.1, 100.45], [3.9, 99.0],
+    [4.5, 98.9], [5.0, 98.4], [5.5, 98.05], [5.95, 98.0], [6.6, 97.5], [5.5, 95.3],
+    [4.0, 94.8], [2.5, 95.5], [1.0, 96.8], [-0.5, 97.5], [-2.0, 98.8],
+    [-3.5, 100.2], [-5.0, 101.8], [-6.5, 102.5], [-8.0, 103.5], [-9.3, 105.5], [-9.6, 108.0],
+    [-9.9, 110.5], [-10.3, 113.0], [-11.0, 115.5], [-12.5, 117.5], [-15.0, 119.3], [-18.5, 118.8],
+    [-22.0, 113.1], [-26.0, 113.1], [-29.5, 113.6], [-31.95, 115.1],
+  ] }, // Singapore → Malacca → west of Sumatra → Christmas I. → Perth
+  // Africa
+  { name: "EASSy", pts: [
+    [-28.96, 31.76], [-27.0, 33.4], [-24.0, 34.8], [-21.0, 35.8], [-18.0, 36.6], [-15.0, 37.2],
+    [-12.0, 37.8], [-9.0, 38.9], [-6.82, 39.29], [-4.05, 40.5], [-1.0, 42.2], [0.5, 43.7],
+    [2.03, 45.6],
+    [3.3, 46.7], [4.5, 47.8], [6.5, 49.3], [8.5, 50.7], [10.5, 51.4], [11.8, 51.45],
+    [12.1, 50.5], [12.35, 48.5], [12.55, 46.0], [12.6, 43.5],
+  ] }, // Mtunzini → Maputo → Dar es Salaam → Mombasa → Mogadishu → Djibouti
+  { name: "SACS", pts: [
+    [-8.84, 11.8], [-7.0, 5.5], [-5.0, -3.0], [-4.0, -12.0], [-3.6, -21.0], [-3.3, -30.0], [-3.0, -39.5],
+  ] }, // Luanda → Fortaleza
+  { name: "EQUIANO", pts: [
+    [38.69, -9.7], [36.8, -9.5], [35.0, -8.3], [33.0, -9.2], [31.0, -9.9], [28.5, -11.3],
+    [25.5, -13.5], [22.5, -16.0], [19.5, -17.1], [16.5, -17.7], [13.5, -17.6], [10.5, -15.5],
+    [8.0, -14.2], [6.0, -12.3], [4.3, -8.6], [4.6, -3.5], [5.1, 3.4], [3.5, -2.0],
+    [1.5, -7.0], [-0.5, -9.0], [-3.5, -9.8], [-6.5, 10.0], [-10.0, 10.5], [-13.0, 11.3],
+    [-16.0, 11.5], [-19.0, 11.3], [-22.68, 14.3], [-26.0, 14.0], [-29.0, 15.0], [-31.5, 16.5],
+    [-33.9, 18.1],
+  ] }, // Lisbon → Lagos → Swakopmund → Cape Town
+  { name: "2AFRICA", pts: [
+    [49.8, -6.0], [48.7, -7.0], [47.4, -8.0], [46.2, -8.8], [45.2, -9.4], [44.0, -10.0],
+    [42.8, -10.6], [41.3, -10.3], [39.8, -9.9], [38.5, -9.9], [37.2, -9.3], [36.2, -8.0],
+    [35.9, -6.5], [35.9, -5.5], [36.15, -4.6], [36.4, -3.3], [36.1, -4.7], [36.0, -5.6],
+    [35.8, -6.4], [34.6, -7.9], [32.6, -9.4], [30.5, -10.4], [28.0, -11.4], [25.5, -13.3],
+    [22.5, -15.8], [19.5, -17.0], [16.5, -17.4], [14.67, -17.8], [12.5, -17.6], [10.0, -16.8],
+    [7.5, -15.0], [5.5, -11.5], [4.2, -7.3], [4.0, -2.0], [4.8, 1.0], [5.3, 3.0],
+    [3.0, -3.0], [0.5, -8.5], [-2.0, -10.0], [-5.0, 6.0], [-8.0, 7.0],
+    [-11.0, 8.8], [-14.0, 9.4], [-17.0, 9.6], [-20.0, 9.9], [-23.0, 11.0], [-26.0, 12.7],
+    [-29.0, 14.4], [-31.5, 16.1], [-33.9, 17.8],
+  ] }, // Bude → Gibraltar → Dakar → Lagos → Cape Town
+  // Baltic
+  { name: "C-LION1", pts: [
+    [60.15, 24.96], [59.6, 22.5], [58.8, 20.5], [58.0, 19.5], [57.2, 19.0], [56.3, 17.5],
+    [55.6, 15.5], [55.0, 13.8], [54.8, 12.6], [54.4, 12.1],
+  ] }, // Helsinki → Rostock
 ];
 
 const R = 2;
@@ -326,10 +446,12 @@ function Atmosphere() {
 function RegionMarker({
   region,
   selected,
+  hideBeam,
   onSelect,
 }: {
   region: Region;
   selected: boolean;
+  hideBeam: boolean;
   onSelect: (r: Region) => void;
 }) {
   const ringRef = useRef<THREE.Mesh>(null);
@@ -410,7 +532,7 @@ function RegionMarker({
             );
           })}
         </group>
-        {selected && (
+        {selected && !hideBeam && (
           <mesh position={[0, 0.28, 0]} raycast={() => null}>
             <cylinderGeometry args={[0.011, 0.011, 0.55, 8]} />
             <meshBasicMaterial
@@ -444,7 +566,7 @@ interface ArcData {
   offset: number;
 }
 
-function Arcs({ regionsById, selectedCode, storm }: { regionsById: Map<string, Region>; selectedCode: string; storm: boolean }) {
+function Arcs({ regionsById, selectedCode }: { regionsById: Map<string, Region>; selectedCode: string }) {
   const mainRefs = useRef<(THREE.Mesh | null)[]>([]);
   const trail1Refs = useRef<(THREE.Mesh | null)[]>([]);
   const trail2Refs = useRef<(THREE.Mesh | null)[]>([]);
@@ -483,17 +605,13 @@ function Arcs({ regionsById, selectedCode, storm }: { regionsById: Map<string, R
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     arcs.forEach((arc, i) => {
-      const s = storm ? 2.2 : 1;
-      const p = (t * arc.speed * s + arc.offset) % 1;
+      const p = (t * arc.speed + arc.offset) % 1;
       const p1 = (p - 0.018 + 1) % 1;
       const p2 = (p - 0.036 + 1) % 1;
       const main = mainRefs.current[i];
       const tr1 = trail1Refs.current[i];
       const tr2 = trail2Refs.current[i];
-      if (main) {
-        main.position.copy(arc.curve.getPoint(p));
-        main.scale.setScalar(storm ? 1.7 : 1);
-      }
+      if (main) main.position.copy(arc.curve.getPoint(p));
       if (tr1) tr1.position.copy(arc.curve.getPoint(p1));
       if (tr2) tr2.position.copy(arc.curve.getPoint(p2));
     });
@@ -523,6 +641,70 @@ function Arcs({ regionsById, selectedCode, storm }: { regionsById: Map<string, R
           <mesh raycast={() => null} ref={(el) => { trail2Refs.current[i] = el; }}>
             <sphereGeometry args={[0.011, 6, 6]} />
             <meshBasicMaterial color="#ff9900" transparent opacity={0.28} />
+          </mesh>
+        </React.Fragment>
+      ))}
+    </group>
+  );
+}
+
+interface CableData {
+  name: string;
+  curve: THREE.CatmullRomCurve3;
+  tubeGeo: THREE.TubeGeometry;
+  tubeMat: THREE.MeshBasicMaterial;
+  speed: number;
+  offset: number;
+}
+
+/** Real submarine cable routes — thin mint tubes hugging the sphere + travelling data pulses. */
+function UnderseaCables() {
+  const pulseRefs = useRef<(THREE.Mesh | null)[]>([]);
+
+  const cables = useMemo<CableData[]>(() => {
+    return SUBMARINE_CABLES.map((c, i) => {
+      const raw = c.pts.map(([lat, lon]) => latLonToVec3(lat, lon, R + 0.006));
+      const rough = new THREE.CatmullRomCurve3(raw, false, "catmullrom", 0.4);
+      // re-sample + re-project onto the sphere so cables hug the surface (no fly-over arcs)
+      const projected = rough.getPoints(220).map((v) => v.clone().normalize().multiplyScalar(R + 0.006));
+      const curve = new THREE.CatmullRomCurve3(projected);
+      const tubeGeo = new THREE.TubeGeometry(curve, 260, 0.0046, 4, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: 0x00ffa3,
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      return { name: c.name, curve, tubeGeo, tubeMat, speed: 0.055 + (i % 4) * 0.016, offset: (i * 0.382) % 1 };
+    });
+  }, []);
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    cables.forEach((c, i) => {
+      const p = (t * c.speed + c.offset) % 1;
+      const m = pulseRefs.current[i];
+      if (m) m.position.copy(c.curve.getPoint(p));
+    });
+  });
+
+  useEffect(() => {
+    return () =>
+      cables.forEach((c) => {
+        c.tubeMat.dispose();
+        c.tubeGeo.dispose();
+      });
+  }, [cables]);
+
+  return (
+    <group>
+      {cables.map((c, i) => (
+        <React.Fragment key={i}>
+          <mesh raycast={() => null} material={c.tubeMat} geometry={c.tubeGeo} />
+          <mesh ref={(el) => { pulseRefs.current[i] = el; }}>
+            <sphereGeometry args={[0.017, 6, 6]} />
+            <meshBasicMaterial color="#baffdf" />
           </mesh>
         </React.Fragment>
       ))}
@@ -564,13 +746,13 @@ function GlobeScene({
   selectedCode,
   onSelect,
   showArcs,
-  storm,
+  showCables,
   autoRotate,
 }: {
   selectedCode: string;
   onSelect: (r: Region) => void;
   showArcs: boolean;
-  storm: boolean;
+  showCables: boolean;
   autoRotate: boolean;
 }) {
   const regionsById = useMemo(() => new Map(REGIONS.map((r) => [r.code, r])), []);
@@ -588,10 +770,17 @@ function GlobeScene({
       <DottedGlobe />
       <Stars />
       <Atmosphere />
-      {showArcs && <Arcs regionsById={regionsById} selectedCode={selectedCode} storm={storm} />}
+      {showArcs && <Arcs regionsById={regionsById} selectedCode={selectedCode} />}
+      {showCables && <UnderseaCables />}
       <EdgePoPs />
       {REGIONS.map((r) => (
-        <RegionMarker key={r.code} region={r} selected={r.code === selectedCode} onSelect={onSelect} />
+        <RegionMarker
+          key={r.code}
+          region={r}
+          selected={r.code === selectedCode}
+          hideBeam={showCables}
+          onSelect={onSelect}
+        />
       ))}
       <OrbitControls
         makeDefault
@@ -671,7 +860,7 @@ export default function GlobalInfrastructure() {
   const [selected, setSelected] = useState<Region>(REGIONS[0]);
   const [autoRotate, setAutoRotate] = useState(true);
   const [showArcs, setShowArcs] = useState(true);
-  const [storm, setStorm] = useState(false);
+  const [showCables, setShowCables] = useState(false);
   const [latency, setLatency] = useState(12);
   const [pkts, setPkts] = useState(1284);
   const [ops, setOps] = useState<OpsLine[]>([]);
@@ -717,14 +906,28 @@ export default function GlobalInfrastructure() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [ops]);
 
-  const toggleBtn = (on: boolean, magenta = false) =>
+  const toggleBtn = (on: boolean, accent: "aws" | "magenta" | "mint" = "aws") =>
     `flex items-center gap-1.5 px-2 py-1.5 text-[8px] font-bold uppercase tracking-[0.2em] border backdrop-blur-md bg-black/60 transition-colors ${
       on
-        ? magenta
+        ? accent === "magenta"
           ? "border-magenta/70 text-magenta shadow-[0_0_14px_rgba(255,45,120,0.4)]"
-          : "border-aws/60 text-aws"
+          : accent === "mint"
+            ? "border-mint/70 text-mint shadow-[0_0_14px_rgba(0,255,163,0.35)]"
+            : "border-aws/60 text-aws"
         : "border-foreground/20 text-muted-foreground"
     }`;
+
+  // AZ detail rows — deterministic base per region + live wobble driven by the ping ticker
+  const azRows = useMemo(() => {
+    return Array.from({ length: selected.azs }, (_, i) => {
+      const letter = String.fromCharCode(97 + i);
+      const h = (selected.code.charCodeAt(i % selected.code.length) * 37 + i * 61) % 100;
+      const base = 34 + h * 0.55;
+      const wobble = ((latency * (i + 3)) % 11) - 5;
+      const load = Math.min(97, Math.max(21, Math.round(base + wobble)));
+      return { id: `${selected.code}${letter}`, load, hot: load > 72 };
+    });
+  }, [selected, latency]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -776,7 +979,7 @@ export default function GlobalInfrastructure() {
                 selectedCode={selected.code}
                 onSelect={setSelected}
                 showArcs={showArcs}
-                storm={storm}
+                showCables={showCables}
                 autoRotate={autoRotate}
               />
             </Canvas>
@@ -803,12 +1006,12 @@ export default function GlobalInfrastructure() {
               </button>
               <button
                 type="button"
-                onClick={() => setStorm((v) => !v)}
-                className={toggleBtn(storm, true)}
-                aria-pressed={storm}
+                onClick={() => setShowCables((v) => !v)}
+                className={toggleBtn(showCables, "mint")}
+                aria-pressed={showCables}
               >
-                <Zap className="w-3 h-3" />
-                ARC STORM {storm ? "ACTIVE" : "IDLE"}
+                <Waves className="w-3 h-3" />
+                UNDERSEA CABLES {showCables ? "ON" : "OFF"}
               </button>
             </div>
 
@@ -828,12 +1031,47 @@ export default function GlobalInfrastructure() {
               </div>
             </div>
 
+            {/* AZ DETAIL — bottom-right, directly opposite TRACE (top-right) */}
+            <div className="absolute bottom-2.5 right-2.5 z-10 glass-inset px-2.5 py-2 w-[150px] sm:w-[172px]">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[7px] uppercase tracking-[0.2em] text-muted-foreground">AZ DETAIL</p>
+                <p className="text-[7px] font-bold text-neon tracking-[0.12em] truncate">
+                  {selected.code.toUpperCase()}
+                </p>
+              </div>
+              <div
+                className="mt-1.5 flex flex-col gap-[5px] max-h-[104px] overflow-y-auto cyber-scroll"
+                role="list"
+                aria-label={`Availability zones in ${selected.code}`}
+              >
+                {azRows.map((az) => (
+                  <div key={az.id} className="flex items-center gap-1.5" role="listitem" title={`${az.id} — ${az.load}% utilization`}>
+                    <span className={`w-1.5 h-1.5 shrink-0 ${az.hot ? "bg-mint animate-pulse" : "bg-mint/60"}`} aria-hidden="true" />
+                    <span className="text-[7.5px] font-bold text-foreground/85 w-[54px] truncate">{az.id}</span>
+                    <span className="flex-1 h-[3px] bg-black/50 border border-foreground/10 overflow-hidden" aria-hidden="true">
+                      <motion.span
+                        key={`${az.id}-${az.load}`}
+                        className="block h-full bg-mint/80"
+                        initial={{ width: "18%" }}
+                        animate={{ width: `${az.load}%` }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                      />
+                    </span>
+                    <span className="text-[7px] text-mint tabular-nums w-[22px] text-right">{az.load}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* legend */}
             <div className="absolute bottom-2.5 left-2.5 z-10 glass-inset px-2.5 py-2 flex flex-col gap-1 text-[7px] uppercase tracking-[0.2em] text-muted-foreground">
               <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-aws" /> CONTINENT DOT</span>
               <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-neon" /> AVAILABILITY ZONES</span>
               <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-white" /> CLOUDFRONT EDGE</span>
-              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-magenta" /> SELECTED + UPLINK BEAM</span>
+              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-mint" /> SUBMARINE CABLE</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-magenta" /> {showCables ? "SELECTED REGION" : "SELECTED + UPLINK BEAM"}
+              </span>
             </div>
           </div>
         </GlassPanel>
@@ -913,6 +1151,29 @@ export default function GlobalInfrastructure() {
             </AnimatePresence>
           </GlassPanel>
 
+          <GlassPanel title="ALL REGIONS" subtitle={`${REGIONS.length} NODES TRACKED`} className="!p-0 flex-1 min-h-0">
+            <div className="p-2 max-h-[240px] overflow-y-auto cyber-scroll flex flex-col gap-1">
+              {REGIONS.map((r) => (
+                <button
+                  key={r.code}
+                  type="button"
+                  onClick={() => setSelected(r)}
+                  className={`flex items-center gap-2 px-2 py-1.5 text-left border transition-colors ${
+                    r.code === selected.code
+                      ? "border-aws/60 bg-aws/10 text-aws"
+                      : "border-transparent text-muted-foreground hover:border-aws/25 hover:bg-aws/[0.04] hover:text-aws"
+                  }`}
+                >
+                  <AWSIconTile src={AWS_EXTRA_ICONS.region} className="w-3.5 h-3.5 shrink-0" alt="" />
+                  <span className="text-[9px] font-bold tracking-[0.1em] flex-1">{r.code}</span>
+                  <span className="text-[7px] uppercase tracking-wider opacity-70">{r.name}</span>
+                  <span className="text-[7px] text-neon tabular-nums" title="Availability Zones">{r.azs}az</span>
+                  <ChevronRight className="w-3 h-3 opacity-50" />
+                </button>
+              ))}
+            </div>
+          </GlassPanel>
+
           <GlassPanel title="LIVE OPS FEED" subtitle="AUTO-GENERATED REGION EVENTS" className="!p-0">
             <div
               ref={feedRef}
@@ -936,29 +1197,6 @@ export default function GlobalInfrastructure() {
                   </motion.div>
                 ))}
               </AnimatePresence>
-            </div>
-          </GlassPanel>
-
-          <GlassPanel title="ALL REGIONS" subtitle={`${REGIONS.length} NODES TRACKED`} className="!p-0 flex-1 min-h-0">
-            <div className="p-2 max-h-[240px] overflow-y-auto cyber-scroll flex flex-col gap-1">
-              {REGIONS.map((r) => (
-                <button
-                  key={r.code}
-                  type="button"
-                  onClick={() => setSelected(r)}
-                  className={`flex items-center gap-2 px-2 py-1.5 text-left border transition-colors ${
-                    r.code === selected.code
-                      ? "border-aws/60 bg-aws/10 text-aws"
-                      : "border-transparent text-muted-foreground hover:border-aws/25 hover:bg-aws/[0.04] hover:text-aws"
-                  }`}
-                >
-                  <AWSIconTile src={AWS_EXTRA_ICONS.region} className="w-3.5 h-3.5 shrink-0" alt="" />
-                  <span className="text-[9px] font-bold tracking-[0.1em] flex-1">{r.code}</span>
-                  <span className="text-[7px] uppercase tracking-wider opacity-70">{r.name}</span>
-                  <span className="text-[7px] text-neon tabular-nums" title="Availability Zones">{r.azs}az</span>
-                  <ChevronRight className="w-3 h-3 opacity-50" />
-                </button>
-              ))}
             </div>
           </GlassPanel>
         </div>
