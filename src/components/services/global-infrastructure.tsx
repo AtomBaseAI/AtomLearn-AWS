@@ -1,0 +1,986 @@
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { OrbitControls, Html, Billboard } from "@react-three/drei";
+import * as THREE from "three";
+import { motion, AnimatePresence } from "framer-motion";
+import { GlassPanel } from "@/components/shared/glass-panel";
+import { Callout } from "@/components/shared/callout";
+import { StatChip } from "@/components/shared/typography";
+import { AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
+import { Globe2, RotateCw, Zap, MapPin, ChevronRight, Activity, Wifi, Server, ShieldAlert } from "lucide-react";
+
+/* ------------------------------------------------------------------ */
+/* DATA                                                                */
+/* ------------------------------------------------------------------ */
+
+interface Region {
+  code: string;
+  name: string;
+  city: string;
+  lat: number;
+  lon: number;
+  azs: number;
+  since: number;
+}
+
+const REGIONS: Region[] = [
+  { code: "us-east-1", name: "N. VIRGINIA", city: "Ashburn, US", lat: 38.9, lon: -77.4, azs: 6, since: 2006 },
+  { code: "us-east-2", name: "OHIO", city: "Columbus, US", lat: 40.4, lon: -82.7, azs: 3, since: 2016 },
+  { code: "us-west-1", name: "N. CALIFORNIA", city: "San Jose, US", lat: 37.4, lon: -121.9, azs: 3, since: 2009 },
+  { code: "us-west-2", name: "OREGON", city: "Portland, US", lat: 45.6, lon: -121.9, azs: 4, since: 2011 },
+  { code: "ca-central-1", name: "CANADA CENTRAL", city: "Montréal, CA", lat: 45.4, lon: -75.7, azs: 3, since: 2016 },
+  { code: "ca-west-1", name: "CALGARY", city: "Calgary, CA", lat: 51.0, lon: -114.1, azs: 3, since: 2023 },
+  { code: "sa-east-1", name: "SÃO PAULO", city: "São Paulo, BR", lat: -23.5, lon: -46.6, azs: 3, since: 2011 },
+  { code: "eu-west-1", name: "IRELAND", city: "Dublin, IE", lat: 53.3, lon: -6.3, azs: 3, since: 2007 },
+  { code: "eu-west-2", name: "LONDON", city: "London, UK", lat: 51.5, lon: -0.1, azs: 3, since: 2016 },
+  { code: "eu-west-3", name: "PARIS", city: "Paris, FR", lat: 48.9, lon: 2.4, azs: 3, since: 2017 },
+  { code: "eu-central-1", name: "FRANKFURT", city: "Frankfurt, DE", lat: 50.1, lon: 8.7, azs: 3, since: 2014 },
+  { code: "eu-north-1", name: "STOCKHOLM", city: "Stockholm, SE", lat: 59.3, lon: 18.1, azs: 3, since: 2018 },
+  { code: "eu-south-1", name: "MILAN", city: "Milan, IT", lat: 45.5, lon: 9.2, azs: 3, since: 2020 },
+  { code: "eu-south-2", name: "SPAIN", city: "Aragón, ES", lat: 40.4, lon: -3.7, azs: 3, since: 2022 },
+  { code: "ap-south-1", name: "MUMBAI", city: "Mumbai, IN", lat: 19.1, lon: 72.9, azs: 3, since: 2016 },
+  { code: "ap-south-2", name: "HYDERABAD", city: "Hyderabad, IN", lat: 17.4, lon: 78.5, azs: 3, since: 2022 },
+  { code: "ap-northeast-1", name: "TOKYO", city: "Tokyo, JP", lat: 35.7, lon: 139.7, azs: 4, since: 2011 },
+  { code: "ap-northeast-2", name: "SEOUL", city: "Seoul, KR", lat: 37.6, lon: 127.0, azs: 4, since: 2016 },
+  { code: "ap-northeast-3", name: "OSAKA", city: "Osaka, JP", lat: 34.7, lon: 135.5, azs: 3, since: 2021 },
+  { code: "ap-southeast-1", name: "SINGAPORE", city: "Singapore, SG", lat: 1.35, lon: 103.8, azs: 3, since: 2010 },
+  { code: "ap-southeast-2", name: "SYDNEY", city: "Sydney, AU", lat: -33.9, lon: 151.2, azs: 3, since: 2012 },
+  { code: "ap-southeast-3", name: "JAKARTA", city: "Jakarta, ID", lat: -6.2, lon: 106.8, azs: 3, since: 2021 },
+  { code: "ap-southeast-4", name: "MELBOURNE", city: "Melbourne, AU", lat: -37.8, lon: 145.0, azs: 3, since: 2023 },
+  { code: "ap-east-1", name: "HONG KONG", city: "Hong Kong, CN", lat: 22.3, lon: 114.2, azs: 3, since: 2019 },
+  { code: "me-south-1", name: "BAHRAIN", city: "Manama, BH", lat: 26.1, lon: 50.5, azs: 3, since: 2019 },
+  { code: "me-central-1", name: "UAE", city: "Dubai, AE", lat: 24.5, lon: 54.4, azs: 3, since: 2022 },
+  { code: "af-south-1", name: "CAPE TOWN", city: "Cape Town, ZA", lat: -33.9, lon: 18.4, azs: 3, since: 2020 },
+  { code: "il-central-1", name: "ISRAEL", city: "Tel Aviv, IL", lat: 32.1, lon: 34.9, azs: 3, since: 2023 },
+];
+
+const ARC_PAIRS: Array<[string, string]> = [
+  ["us-east-1", "eu-west-1"],
+  ["us-east-1", "ap-southeast-1"],
+  ["us-east-1", "sa-east-1"],
+  ["us-east-1", "ap-northeast-1"],
+  ["us-east-1", "me-central-1"],
+  ["us-west-2", "ap-northeast-1"],
+  ["us-west-2", "ap-southeast-2"],
+  ["us-west-1", "ap-south-1"],
+  ["eu-west-1", "ap-south-1"],
+  ["eu-west-1", "eu-south-1"],
+  ["eu-central-1", "af-south-1"],
+  ["eu-west-2", "il-central-1"],
+  ["ap-southeast-1", "ap-southeast-2"],
+  ["ap-northeast-1", "ap-southeast-1"],
+  ["ap-south-1", "me-south-1"],
+  ["sa-east-1", "af-south-1"],
+  ["ca-central-1", "eu-north-1"],
+  ["ap-east-1", "ap-southeast-3"],
+];
+
+const R = 2;
+
+function latLonToVec3(lat: number, lon: number, radius: number): THREE.Vector3 {
+  const phi = ((90 - lat) * Math.PI) / 180;
+  const theta = ((lon + 180) * Math.PI) / 180;
+  return new THREE.Vector3(
+    -radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.cos(phi),
+    radius * Math.sin(phi) * Math.sin(theta)
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* DOTTED WORLD MAP — coarse landmass polygons [lon, lat]              */
+/* ------------------------------------------------------------------ */
+
+const LAND_POLYS: number[][][] = [
+  // NORTH AMERICA mainland
+  [[-168,65.5],[-166,68.5],[-156,71],[-141,69.5],[-128,70],[-115,68.5],[-105,68],[-95,68],[-90,63],[-94,58.5],[-86,56],[-82,55],[-78.5,58.5],[-77,62],[-70,61],[-64,60],[-58,54.5],[-57,51.5],[-66,49],[-67,45],[-70,43],[-74,40.5],[-76,37],[-76,34.8],[-81,31],[-80,25.5],[-82,28],[-84,30],[-89,29.5],[-94,29.5],[-97,26],[-97.5,22],[-90.5,21],[-87,21.5],[-88.5,16],[-83.5,11],[-80,9],[-77,8],[-80,7.5],[-85,10],[-91,14],[-96,15.8],[-105,20],[-107,24],[-110,23],[-114,28],[-117,32.5],[-122,37],[-124,41],[-124,48],[-131,54],[-136,58],[-140,59.5],[-148,60.5],[-152,58],[-158,56.5],[-164,60]],
+  // GREENLAND
+  [[-73,78],[-60,82],[-38,83.5],[-22,82],[-20,76],[-27,70],[-40,65],[-45,60],[-53,66],[-55,71],[-58,76]],
+  // SOUTH AMERICA
+  [[-77,8],[-75,10.8],[-71.5,12.5],[-64,10.5],[-60,8.5],[-52,5.5],[-50,0],[-44,-2.5],[-38,-5],[-35,-8],[-39,-13],[-41,-22],[-48,-26],[-52,-32],[-56,-34.5],[-62,-39],[-65,-41],[-65,-45],[-68,-50],[-68.5,-52.5],[-74,-50],[-73.5,-44],[-73.5,-37],[-71.5,-30],[-70.5,-18],[-75.5,-14],[-79,-8],[-81.3,-6],[-81,-4.5],[-80,-2.5],[-80,1],[-78,6.5]],
+  // AFRICA
+  [[-6,35.5],[3,36.8],[10,37],[11,33.5],[15.5,32],[20,32.5],[25,31.8],[30,31.5],[32.5,29.9],[35,24],[37,21],[39,15.5],[43,12.5],[51.3,11.8],[48,5],[41.5,-1.5],[39,-7],[35.5,-14],[36.5,-18],[35,-22],[32.8,-26],[30,-31],[27,-33.5],[20,-34.8],[18.5,-34.3],[16.5,-29],[14.5,-22.5],[12,-18],[13.5,-12.5],[9,-1],[9.8,4],[6,4.3],[1,6.2],[-7.5,4.4],[-11.5,6.5],[-13.5,8.5],[-16,11.5],[-17.5,14.7],[-16.5,19.5],[-14.5,23],[-11,27.5],[-9.5,31],[-8.5,33.5]],
+  // MADAGASCAR
+  [[43.5,-12.3],[48.5,-13.3],[50.3,-15.5],[49.5,-18.5],[47.5,-24],[45,-25.5],[43.7,-22.5],[43.3,-17.5]],
+  // EURASIA (Europe + Asia mainland)
+  [[-9,38.7],[-9.5,43.5],[-4.5,48.3],[0,49.5],[2.5,51],[4.5,53],[8,54],[8.5,55],[10.5,57.7],[10.8,55.5],[12,54.2],[14.5,54],[18.5,54.8],[21,55.5],[23.5,56.8],[24.5,59],[26,59.6],[30,59.9],[28,60.5],[26.5,60.3],[21.5,61],[21.5,63.5],[25,65.7],[22,64.5],[19.5,63],[18.5,60.5],[17.5,61],[16.5,58.5],[14.5,56.5],[12.8,55.4],[11.3,58],[10,59],[5.5,58.5],[5,60.5],[7,63],[11,64.5],[14,67.5],[18,69.5],[25.5,71],[33,69],[34.5,66.5],[36.5,65],[40,66],[44,67],[48,68.5],[60,69.5],[68,71.5],[73,71.5],[85,74.5],[95,76],[105,77.5],[113,73.8],[128,72.5],[140,71.5],[150,70.5],[161,69],[170,67],[177,64.5],[177,66],[169.6,66.1],[170,63],[178,62],[170,60],[163,58.5],[162,56],[160,53],[156.7,50.9],[155.5,53],[156,57],[152,59],[147,59.5],[142,59],[137,57],[135,55],[138.5,54.5],[141,53],[140.5,51.5],[138,49],[135.5,45],[132,43.2],[129.5,41.5],[129.5,37],[128.5,34.8],[126.5,34.5],[126,37.5],[125,39.5],[124.5,39.8],[122.3,39.5],[121.2,38.9],[121.2,40.8],[117.8,39],[119,37.5],[120.5,36],[120.5,33.5],[121.8,31],[120,27.5],[117,23.5],[114,22.3],[110,21],[108.5,21.5],[105.8,19.8],[106.5,18],[108.8,15.5],[109,13],[106.8,10.5],[104.8,8.8],[103,10.8],[100.6,13.4],[100.9,9.5],[101.5,8],[102.5,6.5],[103.5,4.5],[103.8,1.35],[101,2.5],[100.3,3.5],[98.6,5],[98.3,8],[98.5,12],[96.8,15.8],[97.5,16.5],[94,18],[92.3,20.5],[91.8,22.3],[88.5,21.8],[86.5,20],[83,17.5],[80.3,13],[77.5,8.1],[76,10],[74.5,13],[72.8,19],[70,21],[67,24.5],[64.5,25.2],[60.5,25.3],[57.6,25.7],[56.7,27.1],[54,26.9],[51.5,27.9],[49,29.4],[48.4,30],[50.2,26.6],[51.4,24.7],[54.6,24.3],[56.1,25.9],[56.4,26.35],[57.8,23.8],[59.8,22.5],[57.5,19],[55,17],[52,15.5],[48.5,14],[45,12.8],[43.3,12.8],[41.5,18],[39.5,21],[37.5,24.5],[35,29.4],[34.8,28.9],[34.3,27.8],[33.2,28.7],[32.5,29.9],[32.8,30.7],[34.2,31.2],[35,32.8],[35.8,34.5],[36.2,35.9],[36,36.5],[33.5,36.1],[30.5,36.3],[27.5,36.8],[26.7,38.5],[26.4,39.9],[27.5,40.9],[29.1,41.2],[28,43.4],[29.5,45],[31,46.5],[33.8,44.4],[36.5,45.4],[37.8,44.7],[39.5,43.5],[41.6,42.2],[41.5,41.5],[38,41.2],[35,42],[32,41.9],[29.1,41.1],[27.5,40.7],[26.2,40.1],[24.5,40.9],[23,40.5],[23.5,40],[24,37.9],[23,36.8],[22.2,36.5],[21.5,37],[21,38.8],[21.5,38.5],[20,40],[19.5,41.5],[19,42],[17,43],[15.5,44.3],[13.8,45.6],[13,45.5],[12.5,44.8],[13.5,43.6],[14,42.5],[16,41.9],[18.5,40.1],[17.3,40.3],[16.5,38.2],[15.65,37.9],[14.2,40.8],[13.5,41.2],[12,42],[10,44],[7.5,43.7],[4.8,43.3],[3.2,41.5],[0,38.8],[-5.4,36.1],[-6.5,36.5],[-7.5,37],[-9,37]],
+  // BRITISH ISLES
+  [[-5.7,50],[1.3,51.2],[1.7,52.8],[0,53.5],[-1.5,55],[-3,57.5],[-5,58.5],[-6,57],[-5,55.5],[-4.5,54.5],[-3,53.5],[-4.7,52],[-5.2,51.7],[-3.5,50.7]],
+  [[-6,52],[-10,51.6],[-10,53.5],[-8,55.2],[-6,55.2],[-6,53.5]],
+  // ICELAND
+  [[-22,63.4],[-14.5,63.8],[-13.5,65],[-15,66.3],[-21,66.1],[-24.5,65.5]],
+  // JAPAN
+  [[140.8,41.5],[141.5,40],[141,38.5],[140.5,36.5],[139.8,35.3],[138,34.7],[135.5,34.5],[132,34],[130.9,34.3],[133,35.5],[136,36],[137.5,37.5],[139.5,39.5],[140.3,41.2]],
+  [[140.5,42.5],[143,42],[145.5,43.3],[144,44],[141.5,45.4],[140.2,43.5]],
+  [[130,33.5],[131.5,31.5],[130.2,31],[129.5,32.5]],
+  // TAIWAN + SRI LANKA + PHILIPPINES
+  [[120,22.5],[121,21.9],[122,25],[121,25.3],[120.2,23.5]],
+  [[79.8,6],[80.5,5.9],[81.9,7],[81.7,8.5],[80,9.5]],
+  [[120,16],[122,14.5],[121.5,18.5],[120.5,18.5]],
+  [[122,7],[126.5,6.5],[125.5,9.5],[122.5,9]],
+  // INDONESIA / SE ASIA ISLANDS
+  [[109,1],[110.5,-3],[114,-3.5],[116,-2.5],[116.5,0],[118,5.5],[115.5,5],[113,3],[110.5,1]],
+  [[95.5,4.5],[97.5,5.2],[100,2.5],[103,-0.5],[105.5,-3],[106,-5.9],[104,-5.5],[102,-3],[100,-1],[98,1.5],[95.5,5.5]],
+  [[105.5,-6.1],[110,-6.5],[114,-7.5],[114.5,-8.5],[110,-8],[105.5,-7]],
+  [[119,0.5],[120.5,1.3],[123.5,0.5],[120.5,-2],[122,-4],[120.5,-5.5],[119.5,-3.5]],
+  [[131,-1.5],[135,-2.5],[138,-2],[141,-3],[146,-5],[148,-8.5],[146,-8],[143,-8.5],[138,-7.5],[134,-6],[132,-4],[131,-2.5]],
+  // AUSTRALIA
+  [[113.5,-22],[114,-26.5],[115.5,-31.5],[115,-34],[119,-34.5],[123.5,-33.8],[129,-31.7],[134,-32.5],[138.5,-35.5],[140,-38],[144,-38.5],[145,-38],[147,-38.5],[150,-37.5],[151.3,-33.9],[153,-30],[153.5,-27.5],[153,-26],[150.5,-22.5],[146.5,-19],[145.5,-15.5],[142.5,-10.8],[141.5,-13],[139.5,-17.5],[137,-16],[135.5,-12.5],[132,-11.5],[130,-12.5],[129,-14.8],[126,-14],[122.5,-17],[119,-20],[114.5,-21.5]],
+  // TASMANIA + NEW ZEALAND
+  [[145,-40.8],[148,-40.8],[148,-43.3],[146,-43.5]],
+  [[173,-34.5],[176.5,-37.5],[178.3,-37.7],[178.5,-38.5],[177,-39.5],[175.5,-41.3],[174.7,-41.3],[174.5,-39.5],[173,-36]],
+  [[172.5,-40.5],[174,-41.5],[173,-43.5],[171,-44.5],[168,-46.5],[166.5,-46],[168,-44],[171,-41.8]],
+  // CUBA + SAKHALIN + NOVAYA ZEMLYA + NEWFOUNDLAND
+  [[-84.9,21.9],[-80,23.2],[-74.5,20.2],[-77.5,19.9],[-84,21.5]],
+  [[142,46],[143.5,49],[142.5,54],[141.8,51],[142,48]],
+  [[53,70.5],[55,71.5],[58,74],[63,76],[68,76.8],[64,75.5],[58,73],[55,71]],
+  [[-59.5,47.5],[-55.5,47],[-53,46.7],[-53.5,48.5],[-56,49.5],[-58,50]],
+  // ANTARCTIC PENINSULA
+  [[-64,-63],[-59,-63.5],[-61,-66],[-66,-68],[-70,-70],[-73,-68],[-68,-65.5]],
+];
+
+const POLY_BOXES = LAND_POLYS.map((p) => {
+  let minLon = 180, maxLon = -180, minLat = 90, maxLat = -90;
+  for (const [lo, la] of p) {
+    if (lo < minLon) minLon = lo;
+    if (lo > maxLon) maxLon = lo;
+    if (la < minLat) minLat = la;
+    if (la > maxLat) maxLat = la;
+  }
+  return { minLon, maxLon, minLat, maxLat };
+});
+
+function inPoly(lon: number, lat: number, poly: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function isLand(lon: number, lat: number): boolean {
+  if (lat <= -71) return true; // antarctic ring
+  for (let k = 0; k < LAND_POLYS.length; k++) {
+    const b = POLY_BOXES[k];
+    if (lon < b.minLon || lon > b.maxLon || lat < b.minLat || lat > b.maxLat) continue;
+    if (inPoly(lon, lat, LAND_POLYS[k])) return true;
+  }
+  return false;
+}
+
+/* ------------------------------------------------------------------ */
+/* 3D SUB-COMPONENTS                                                   */
+/* ------------------------------------------------------------------ */
+
+/** Dotted world map: bright dots = continents, faint dots = ocean grid. */
+function DottedGlobe() {
+  const { land, ocean } = useMemo(() => {
+    const N = 16000;
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    const landArr: number[] = [];
+    const oceanArr: number[] = [];
+    for (let i = 0; i < N; i++) {
+      const y = 1 - (i / (N - 1)) * 2;
+      const rad = Math.sqrt(1 - y * y);
+      const theta = golden * i;
+      const x = Math.cos(theta) * rad;
+      const z = Math.sin(theta) * rad;
+      const px = x * R, py = y * R, pz = z * R;
+      // inverse of latLonToVec3
+      const lat = (Math.asin(y) * 180) / Math.PI;
+      let lon = (Math.atan2(z, -x) * 180) / Math.PI - 180;
+      if (lon < -180) lon += 360;
+      if (isLand(lon, lat)) {
+        landArr.push(px, py, pz);
+      } else {
+        oceanArr.push(px, py, pz);
+      }
+    }
+    return {
+      land: new Float32Array(landArr),
+      ocean: new Float32Array(oceanArr),
+    };
+  }, []);
+
+  return (
+    <group>
+      {/* continents */}
+      <points raycast={() => null}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[land, 3]} />
+        </bufferGeometry>
+        <pointsMaterial size={0.021} color="#ff9900" transparent opacity={0.9} sizeAttenuation />
+      </points>
+      {/* ocean grid — barely there */}
+      <points raycast={() => null}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[ocean, 3]} />
+        </bufferGeometry>
+        <pointsMaterial size={0.007} color="#ffb347" transparent opacity={0.09} sizeAttenuation />
+      </points>
+    </group>
+  );
+}
+
+/** Lat/lon graticule — map cartography feel. */
+function Graticule() {
+  const geom = useMemo(() => {
+    const pts: number[] = [];
+    const seg = 96;
+    for (let lat = -60; lat <= 60; lat += 30) {
+      for (let i = 0; i < seg; i++) {
+        const a = latLonToVec3(lat, -180 + (360 * i) / seg, R + 0.003);
+        const b = latLonToVec3(lat, -180 + (360 * (i + 1)) / seg, R + 0.003);
+        pts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+    }
+    for (let lon = -180; lon < 180; lon += 30) {
+      for (let i = 0; i < seg; i++) {
+        const a = latLonToVec3(-84 + (168 * i) / seg, lon, R + 0.003);
+        const b = latLonToVec3(-84 + (168 * (i + 1)) / seg, lon, R + 0.003);
+        pts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    return g;
+  }, []);
+  return (
+    <lineSegments geometry={geom} raycast={() => null}>
+      <lineBasicMaterial color="#ff9900" transparent opacity={0.06} />
+    </lineSegments>
+  );
+}
+
+function Stars() {
+  const matRef = useRef<THREE.PointsMaterial>(null);
+  const positions = useMemo(() => {
+    const N = 500;
+    const arr = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      const v = new THREE.Vector3().randomDirection().multiplyScalar(14 + Math.random() * 10);
+      arr[i * 3] = v.x;
+      arr[i * 3 + 1] = v.y;
+      arr[i * 3 + 2] = v.z;
+    }
+    return arr;
+  }, []);
+  useFrame(({ clock }) => {
+    if (matRef.current) {
+      matRef.current.opacity = 0.3 + 0.12 * Math.sin(clock.elapsedTime * 0.9);
+    }
+  });
+  return (
+    <points raycast={() => null}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial ref={matRef} size={0.05} color="#ffb347" transparent opacity={0.35} sizeAttenuation />
+    </points>
+  );
+}
+
+function Atmosphere() {
+  const shader = useMemo(
+    () => ({
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        void main() {
+          float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 3.0);
+          gl_FragColor = vec4(1.0, 0.6, 0.05, 1.0) * intensity;
+        }
+      `,
+    }),
+    []
+  );
+  return (
+    <group>
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[R * 1.18, 48, 48]} />
+        <shaderMaterial
+          vertexShader={shader.vertexShader}
+          fragmentShader={shader.fragmentShader}
+          blending={THREE.AdditiveBlending}
+          side={THREE.BackSide}
+          transparent
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+function RegionMarker({
+  region,
+  selected,
+  onSelect,
+}: {
+  region: Region;
+  selected: boolean;
+  onSelect: (r: Region) => void;
+}) {
+  const ringRef = useRef<THREE.Mesh>(null);
+  const ringMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const orbitRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  const [hovered, setHovered] = useState(false);
+  const pos = useMemo(() => latLonToVec3(region.lat, region.lon, R + 0.015), [region]);
+  const phase = useMemo(() => Math.random() * Math.PI * 2, []);
+  const upQuat = useMemo(
+    () => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), pos.clone().normalize()),
+    [pos]
+  );
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    // expanding ping ring (loop: grow + fade)
+    if (ringRef.current && ringMatRef.current) {
+      const f = (t * 0.4 + phase) % 1;
+      ringRef.current.scale.setScalar(1 + f * 2.2);
+      ringMatRef.current.opacity = 0.75 * (1 - f);
+    }
+    // orbiting AZ satellites
+    if (orbitRef.current) orbitRef.current.rotation.y = t * 0.55 + phase;
+    if (groupRef.current) {
+      const target = selected ? 1.9 : hovered ? 1.6 : 1;
+      groupRef.current.scale.lerp(new THREE.Vector3(target, target, target), 0.14);
+    }
+  });
+
+  const color = selected ? "#ff2d78" : hovered ? "#ffb347" : "#ff9900";
+
+  return (
+    <group ref={groupRef} position={pos}>
+      {/* core dot */}
+      <mesh
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(region);
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHovered(true);
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          setHovered(false);
+          document.body.style.cursor = "auto";
+        }}
+      >
+        <sphereGeometry args={[0.036, 12, 12]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+      {/* expanding ping ring */}
+      <Billboard>
+        <mesh ref={ringRef}>
+          <ringGeometry args={[0.05, 0.062, 32]} />
+          <meshBasicMaterial
+            ref={ringMatRef}
+            color={selected ? "#ff2d78" : "#ff9900"}
+            transparent
+            opacity={0.7}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+      </Billboard>
+      {/* tangent-plane frame: orbiting AZ satellites + uplink beam */}
+      <group quaternion={upQuat}>
+        <group ref={orbitRef}>
+          {Array.from({ length: Math.min(region.azs, 4) }).map((_, i) => {
+            const a = (i / Math.min(region.azs, 4)) * Math.PI * 2;
+            return (
+              <mesh key={i} position={[Math.cos(a) * 0.095, 0.015, Math.sin(a) * 0.095]}>
+                <sphereGeometry args={[0.011, 8, 8]} />
+                <meshBasicMaterial color="#ffb347" transparent opacity={0.9} />
+              </mesh>
+            );
+          })}
+        </group>
+        {selected && (
+          <mesh position={[0, 0.28, 0]} raycast={() => null}>
+            <cylinderGeometry args={[0.011, 0.011, 0.55, 8]} />
+            <meshBasicMaterial
+              color="#ff2d78"
+              transparent
+              opacity={0.4}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+        )}
+      </group>
+      {hovered && (
+        <Html center distanceFactor={7} zIndexRange={[20, 0]}>
+          <div className="px-2 py-1 bg-black/90 border border-aws/60 text-aws text-[10px] font-bold tracking-[0.15em] whitespace-nowrap backdrop-blur-sm">
+            {region.code.toUpperCase()}
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+}
+
+interface ArcData {
+  a: string;
+  b: string;
+  curve: THREE.QuadraticBezierCurve3;
+  tubeGeo: THREE.TubeGeometry;
+  tubeMat: THREE.MeshBasicMaterial;
+  speed: number;
+  offset: number;
+}
+
+function Arcs({ regionsById, selectedCode, storm }: { regionsById: Map<string, Region>; selectedCode: string; storm: boolean }) {
+  const mainRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const trail1Refs = useRef<(THREE.Mesh | null)[]>([]);
+  const trail2Refs = useRef<(THREE.Mesh | null)[]>([]);
+
+  const arcs = useMemo<ArcData[]>(() => {
+    return ARC_PAIRS.map(([a, b], i) => {
+      const ra = regionsById.get(a);
+      const rb = regionsById.get(b);
+      if (!ra || !rb) return null;
+      const start = latLonToVec3(ra.lat, ra.lon, R + 0.01);
+      const end = latLonToVec3(rb.lat, rb.lon, R + 0.01);
+      const mid = start.clone().add(end).multiplyScalar(0.5).normalize()
+        .multiplyScalar(R + start.distanceTo(end) * 0.38);
+      const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+      const tubeGeo = new THREE.TubeGeometry(curve, 48, 0.0065, 5, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: 0xff9900,
+        transparent: true,
+        opacity: 0.24,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      return { a, b, curve, tubeGeo, tubeMat, speed: 0.22 + (i % 5) * 0.05, offset: (i * 0.618) % 1 };
+    }).filter(Boolean) as ArcData[];
+  }, [regionsById]);
+
+  // highlight arcs connected to the selected region
+  useEffect(() => {
+    arcs.forEach((arc) => {
+      const connected = arc.a === selectedCode || arc.b === selectedCode;
+      arc.tubeMat.color.set(connected ? "#ff2d78" : "#ff9900");
+      arc.tubeMat.opacity = connected ? 0.6 : 0.22;
+    });
+  }, [arcs, selectedCode]);
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    arcs.forEach((arc, i) => {
+      const s = storm ? 2.2 : 1;
+      const p = (t * arc.speed * s + arc.offset) % 1;
+      const p1 = (p - 0.018 + 1) % 1;
+      const p2 = (p - 0.036 + 1) % 1;
+      const main = mainRefs.current[i];
+      const tr1 = trail1Refs.current[i];
+      const tr2 = trail2Refs.current[i];
+      if (main) {
+        main.position.copy(arc.curve.getPoint(p));
+        main.scale.setScalar(storm ? 1.7 : 1);
+      }
+      if (tr1) tr1.position.copy(arc.curve.getPoint(p1));
+      if (tr2) tr2.position.copy(arc.curve.getPoint(p2));
+    });
+  });
+
+  useEffect(() => {
+    return () =>
+      arcs.forEach((arc) => {
+        arc.tubeMat.dispose();
+        arc.tubeGeo.dispose();
+      });
+  }, [arcs]);
+
+  return (
+    <group>
+      {arcs.map((arc, i) => (
+        <React.Fragment key={i}>
+          <mesh raycast={() => null} material={arc.tubeMat} geometry={arc.tubeGeo} />
+          <mesh ref={(el) => { mainRefs.current[i] = el; }}>
+            <sphereGeometry args={[0.026, 8, 8]} />
+            <meshBasicMaterial color="#ffb347" />
+          </mesh>
+          <mesh raycast={() => null} ref={(el) => { trail1Refs.current[i] = el; }}>
+            <sphereGeometry args={[0.017, 6, 6]} />
+            <meshBasicMaterial color="#ff9900" transparent opacity={0.55} />
+          </mesh>
+          <mesh raycast={() => null} ref={(el) => { trail2Refs.current[i] = el; }}>
+            <sphereGeometry args={[0.011, 6, 6]} />
+            <meshBasicMaterial color="#ff9900" transparent opacity={0.28} />
+          </mesh>
+        </React.Fragment>
+      ))}
+    </group>
+  );
+}
+
+/** CloudFront edge PoPs — seeded random points, land only. */
+function EdgePoPs() {
+  const positions = useMemo(() => {
+    const st = { s: 42 };
+    const rand = () => {
+      st.s = (st.s * 16807) % 2147483647;
+      return st.s / 2147483647;
+    };
+    const arr: number[] = [];
+    let attempts = 0;
+    while (arr.length / 3 < 150 && attempts < 6000) {
+      attempts++;
+      const lat = -58 + rand() * 124;
+      const lon = -180 + rand() * 360;
+      if (!isLand(lon, lat)) continue;
+      const v = latLonToVec3(lat, lon, R + 0.045);
+      arr.push(v.x, v.y, v.z);
+    }
+    return new Float32Array(arr);
+  }, []);
+  return (
+    <points raycast={() => null}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial size={0.019} color="#ffffff" transparent opacity={0.5} sizeAttenuation />
+    </points>
+  );
+}
+
+function GlobeScene({
+  selectedCode,
+  onSelect,
+  showArcs,
+  storm,
+  autoRotate,
+}: {
+  selectedCode: string;
+  onSelect: (r: Region) => void;
+  showArcs: boolean;
+  storm: boolean;
+  autoRotate: boolean;
+}) {
+  const regionsById = useMemo(() => new Map(REGIONS.map((r) => [r.code, r])), []);
+
+  return (
+    <>
+      <ambientLight intensity={0.4} />
+      <pointLight position={[5, 5, 5]} intensity={40} color="#ff9900" />
+      {/* occluder core */}
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[R - 0.02, 48, 48]} />
+        <meshBasicMaterial color="#08080e" />
+      </mesh>
+      <Graticule />
+      <DottedGlobe />
+      <Stars />
+      <Atmosphere />
+      {showArcs && <Arcs regionsById={regionsById} selectedCode={selectedCode} storm={storm} />}
+      <EdgePoPs />
+      {REGIONS.map((r) => (
+        <RegionMarker key={r.code} region={r} selected={r.code === selectedCode} onSelect={onSelect} />
+      ))}
+      <OrbitControls
+        makeDefault
+        enablePan={false}
+        enableZoom
+        minDistance={3.2}
+        maxDistance={9}
+        autoRotate={autoRotate}
+        autoRotateSpeed={0.7}
+        enableDamping
+        dampingFactor={0.08}
+      />
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* RUNTIME TELEMETRY (live details)                                    */
+/* ------------------------------------------------------------------ */
+
+type Tone = "mint" | "aws" | "magenta" | "danger";
+
+const OPS_EVENTS: Array<{ tone: Tone; gen: (r: Region) => string }> = [
+  { tone: "mint", gen: (r) => `health check 100% — ${r.azs}/${r.azs} AZs nominal` },
+  { tone: "aws", gen: (r) => `autoscaling: +${1 + Math.floor(Math.random() * 3)} instances @ ${r.code}` },
+  { tone: "aws", gen: (r) => `edge cache fill ${(85 + Math.random() * 14).toFixed(1)}% — ${r.city.split(",")[0]}` },
+  { tone: "magenta", gen: (r) => `inter-region CRR sync ${8 + Math.floor(Math.random() * 22)}ms → ${r.code}` },
+  { tone: "mint", gen: (r) => `route53 resolved ${r.code} — rtt ${(9 + Math.random() * 18).toFixed(0)}ms` },
+  { tone: "danger", gen: (r) => `ddos attempt mitigated @ ${r.code} — shield 4.${Math.floor(Math.random() * 9)}G pps` },
+  { tone: "aws", gen: (r) => `s3 replication storm draining → ${r.code}` },
+  { tone: "mint", gen: (r) => `lambda warm pool rebalanced @ ${r.code}` },
+  { tone: "magenta", gen: (r) => `failover drill clean — ${r.code} delta sync 0 drift` },
+  { tone: "aws", gen: (r) => `cloudfront purge propagated → ${3 + Math.floor(Math.random() * 40)} edges` },
+  { tone: "mint", gen: (r) => `direct connect: ${(1 + Math.random() * 40).toFixed(0)}Gbps uplink healthy` },
+  { tone: "danger", gen: (r) => `spot interruption notice drained — ${r.code} fleet rebalanced` },
+];
+
+interface OpsLine {
+  id: number;
+  time: string;
+  text: string;
+  tone: Tone;
+}
+
+const TONE_TEXT: Record<Tone, string> = {
+  mint: "text-mint",
+  aws: "text-aws",
+  magenta: "text-magenta",
+  danger: "text-danger",
+};
+
+function utcNow(): string {
+  return new Date().toISOString().slice(11, 19);
+}
+
+function useTelemetry() {
+  const [tele, setTele] = useState({ rps: 842317, gbps: 14.2, vms: 1832409, edges: 601 });
+  useEffect(() => {
+    const t = setInterval(() => {
+      setTele((p) => ({
+        rps: Math.max(700000, p.rps + Math.round((Math.random() - 0.48) * 26000)),
+        gbps: Math.max(8, +(p.gbps + (Math.random() - 0.5) * 0.9).toFixed(1)),
+        vms: Math.max(1500000, p.vms + Math.round((Math.random() - 0.46) * 4200)),
+        edges: Math.random() < 0.05 ? p.edges + 1 : p.edges,
+      }));
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+  return tele;
+}
+
+/* ------------------------------------------------------------------ */
+/* MAIN PANEL                                                          */
+/* ------------------------------------------------------------------ */
+
+export default function GlobalInfrastructure() {
+  const [selected, setSelected] = useState<Region>(REGIONS[0]);
+  const [autoRotate, setAutoRotate] = useState(true);
+  const [showArcs, setShowArcs] = useState(true);
+  const [storm, setStorm] = useState(false);
+  const [latency, setLatency] = useState(12);
+  const [pkts, setPkts] = useState(1284);
+  const [ops, setOps] = useState<OpsLine[]>([]);
+  const opsIdRef = useRef(0);
+  const feedRef = useRef<HTMLDivElement>(null);
+  const tele = useTelemetry();
+
+  const latencyBase = useMemo(() => Math.round(8 + Math.abs(selected.lat) * 1.1), [selected.lat]);
+
+  // live ping
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLatency(latencyBase + Math.round(Math.random() * 22));
+    }, 1100);
+    return () => clearInterval(timer);
+  }, [latencyBase]);
+
+  // packets/sec HUD ticker
+  useEffect(() => {
+    const t = setInterval(() => {
+      setPkts((v) => Math.max(400, Math.round(v + (Math.random() - 0.48) * 240)));
+    }, 800);
+    return () => clearInterval(t);
+  }, []);
+
+  // live ops feed
+  useEffect(() => {
+    const push = () => {
+      const r = REGIONS[Math.floor(Math.random() * REGIONS.length)];
+      const ev = OPS_EVENTS[Math.floor(Math.random() * OPS_EVENTS.length)];
+      opsIdRef.current += 1;
+      const line: OpsLine = { id: opsIdRef.current, time: utcNow(), text: ev.gen(r), tone: ev.tone };
+      setOps((prev) => [...prev.slice(-8), line]);
+    };
+    push();
+    const t = setInterval(push, 2100);
+    return () => clearInterval(t);
+  }, []);
+
+  // auto-scroll ops feed
+  useEffect(() => {
+    const el = feedRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [ops]);
+
+  const toggleBtn = (on: boolean, magenta = false) =>
+    `flex items-center gap-1.5 px-2 py-1.5 text-[8px] font-bold uppercase tracking-[0.2em] border backdrop-blur-md bg-black/60 transition-colors ${
+      on
+        ? magenta
+          ? "border-magenta/70 text-magenta shadow-[0_0_14px_rgba(255,45,120,0.4)]"
+          : "border-aws/60 text-aws"
+        : "border-foreground/20 text-muted-foreground"
+    }`;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* static stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <StatChip label="REGIONS ONLINE" value="28 / 34" />
+        <StatChip label="AZs TRACKED" value="90" tone="magenta" delay={0.05} />
+        <StatChip label="EDGE PoPs" value="600+" delay={0.1} />
+        <StatChip label="COUNTRIES SERVED" value="245" tone="mint" delay={0.15} />
+      </div>
+
+      {/* live telemetry — runtime details */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[
+          { icon: Activity, label: "REQUESTS / SEC", value: tele.rps.toLocaleString("en-US"), tone: "text-aws" },
+          { icon: Wifi, label: "DATA OUT", value: `${tele.gbps.toFixed(1)} GB/s`, tone: "text-mint" },
+          { icon: Server, label: "ACTIVE VMS", value: tele.vms.toLocaleString("en-US"), tone: "text-neon" },
+          { icon: ShieldAlert, label: "EDGE LOCATIONS", value: tele.edges.toLocaleString("en-US"), tone: "text-magenta" },
+        ].map((c, i) => (
+          <div key={c.label} className="glass-inset px-3 py-2 flex items-center gap-2.5">
+            <c.icon className={`w-4 h-4 shrink-0 ${c.tone}`} aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-[7px] uppercase tracking-[0.2em] text-muted-foreground">{c.label}</p>
+              <motion.p
+                key={c.value}
+                initial={{ opacity: 0.35, y: -3 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: i * 0.01 }}
+                className={`text-[12px] font-extrabold tabular-nums ${c.tone}`}
+              >
+                {c.value}
+              </motion.p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-[1fr_320px] gap-4">
+        {/* 3D GLOBE */}
+        <GlassPanel title="ORBITAL VIEW // DOTTED WORLD MAP" subtitle="DRAG TO ROTATE — SCROLL TO ZOOM — CLICK A NODE" className="!p-0 overflow-hidden">
+          <div className="relative h-[440px] sm:h-[560px] lg:h-[640px] scanlines">
+            <Canvas
+              camera={{ position: [0, 0.7, 7.4], fov: 40 }}
+              dpr={[1, 2]}
+              gl={{ antialias: true, alpha: true }}
+              className="!absolute inset-0"
+            >
+              <GlobeScene
+                selectedCode={selected.code}
+                onSelect={setSelected}
+                showArcs={showArcs}
+                storm={storm}
+                autoRotate={autoRotate}
+              />
+            </Canvas>
+
+            {/* HUD controls */}
+            <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={() => setAutoRotate((v) => !v)}
+                className={toggleBtn(autoRotate)}
+                aria-pressed={autoRotate}
+              >
+                <RotateCw className={`w-3 h-3 ${autoRotate ? "animate-spin" : ""}`} style={{ animationDuration: "3s" }} />
+                AUTO-ROTATE {autoRotate ? "ON" : "OFF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowArcs((v) => !v)}
+                className={toggleBtn(showArcs)}
+                aria-pressed={showArcs}
+              >
+                <Globe2 className="w-3 h-3" />
+                INTER-REGION NET {showArcs ? "ON" : "OFF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStorm((v) => !v)}
+                className={toggleBtn(storm, true)}
+                aria-pressed={storm}
+              >
+                <Zap className="w-3 h-3" />
+                ARC STORM {storm ? "ACTIVE" : "IDLE"}
+              </button>
+            </div>
+
+            {/* live pkts HUD */}
+            <div className="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-1.5">
+              <div className="glass-inset px-2.5 py-1.5 text-right">
+                <p className="text-[7px] uppercase tracking-[0.2em] text-muted-foreground">PKTS / SEC</p>
+                <motion.p key={pkts} initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} className="text-[11px] font-extrabold text-aws tabular-nums">
+                  {pkts.toLocaleString("en-US")}
+                </motion.p>
+              </div>
+              <div className="glass-inset px-2.5 py-1.5 text-right">
+                <p className="text-[7px] uppercase tracking-[0.2em] text-muted-foreground">TRACE</p>
+                <p className="text-[9px] font-bold text-magenta tabular-nums">
+                  {selected.lat.toFixed(1)}° / {selected.lon.toFixed(1)}°
+                </p>
+              </div>
+            </div>
+
+            {/* legend */}
+            <div className="absolute bottom-2.5 left-2.5 z-10 glass-inset px-2.5 py-2 flex flex-col gap-1 text-[7px] uppercase tracking-[0.2em] text-muted-foreground">
+              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-aws" /> CONTINENT DOT</span>
+              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-neon" /> AVAILABILITY ZONES</span>
+              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-white" /> CLOUDFRONT EDGE</span>
+              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-magenta" /> SELECTED + UPLINK BEAM</span>
+            </div>
+          </div>
+        </GlassPanel>
+
+        {/* SIDE: selected region + ops feed + region list */}
+        <div className="flex flex-col gap-4">
+          <GlassPanel title="REGION UPLINK" subtitle={`TARGET: ${selected.code.toUpperCase()}`} deep className="!p-0">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={selected.code}
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -16 }}
+                transition={{ duration: 0.3 }}
+                className="p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-extrabold text-aws text-glow tracking-[0.12em]">{selected.code.toUpperCase()}</span>
+                  <span className="flex items-center gap-1.5 text-[8px] uppercase tracking-[0.2em] text-mint">
+                    <span className="w-1.5 h-1.5 bg-mint animate-pulse" /> ONLINE
+                  </span>
+                </div>
+                <p className="text-[9px] text-muted-foreground uppercase tracking-[0.2em] mt-1 flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-magenta" /> {selected.city}
+                </p>
+
+                <div className="grid grid-cols-3 gap-1.5 mt-3">
+                  <div className="glass-inset p-1.5">
+                    <p className="text-[6.5px] uppercase tracking-wider text-muted-foreground">SINCE</p>
+                    <p className="text-xs font-extrabold text-foreground">{selected.since}</p>
+                  </div>
+                  <div className="glass-inset p-1.5">
+                    <p className="text-[6.5px] uppercase tracking-wider text-muted-foreground">AZs</p>
+                    <p className="text-xs font-extrabold text-aws">{selected.azs}</p>
+                  </div>
+                  <div className="glass-inset p-1.5">
+                    <p className="text-[6.5px] uppercase tracking-wider text-muted-foreground">PING</p>
+                    <motion.p key={latency} initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} className="text-xs font-extrabold text-mint tabular-nums">
+                      {latency}ms
+                    </motion.p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex gap-1">
+                  {Array.from({ length: selected.azs }).map((_, i) => (
+                    <motion.span
+                      key={i}
+                      initial={{ scaleY: 0.2, opacity: 0.3 }}
+                      animate={{ scaleY: 1, opacity: 1 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="flex-1 h-1.5 bg-mint/70 shadow-[0_0_8px_rgba(0,255,163,0.5)]"
+                      title={`AZ: ${selected.code}${String.fromCharCode(97)} (${i + 1})`}
+                    />
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[7px] uppercase tracking-[0.2em] text-muted-foreground">
+                  {selected.azs} ISOLATED AVAILABILITY ZONES — EACH A SEPARATE DATA CENTER CLUSTER
+                </p>
+
+                {/* region throughput bar — runtime detail */}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-[7px] uppercase tracking-[0.2em] text-muted-foreground">
+                    <span>EGRESS THROUGHPUT</span>
+                    <span className="text-aws tabular-nums">{(2 + Math.abs(selected.lat) / 18).toFixed(1)} Gbps</span>
+                  </div>
+                  <div className="mt-1 h-1.5 glass-inset overflow-hidden">
+                    <motion.div
+                      key={`${selected.code}-egress`}
+                      className="h-full bg-aws/80"
+                      initial={{ width: "12%" }}
+                      animate={{ width: `${45 + Math.abs(selected.lat) * 0.6}%` }}
+                      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </GlassPanel>
+
+          <GlassPanel title="LIVE OPS FEED" subtitle="AUTO-GENERATED REGION EVENTS" className="!p-0">
+            <div
+              ref={feedRef}
+              className="p-2 h-[150px] overflow-y-auto cyber-scroll flex flex-col gap-[3px]"
+              aria-live="polite"
+            >
+              <AnimatePresence initial={false}>
+                {ops.map((l) => (
+                  <motion.div
+                    key={l.id}
+                    initial={{ opacity: 0, x: 14 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="text-[8.5px] leading-relaxed flex gap-1.5"
+                  >
+                    <span className="text-muted-foreground/60 tabular-nums shrink-0">{l.time}</span>
+                    <span className={`${TONE_TEXT[l.tone]} break-all`}>
+                      {">"} {l.text}
+                    </span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </GlassPanel>
+
+          <GlassPanel title="ALL REGIONS" subtitle={`${REGIONS.length} NODES TRACKED`} className="!p-0 flex-1 min-h-0">
+            <div className="p-2 max-h-[240px] overflow-y-auto cyber-scroll flex flex-col gap-1">
+              {REGIONS.map((r) => (
+                <button
+                  key={r.code}
+                  type="button"
+                  onClick={() => setSelected(r)}
+                  className={`flex items-center gap-2 px-2 py-1.5 text-left border transition-colors ${
+                    r.code === selected.code
+                      ? "border-aws/60 bg-aws/10 text-aws"
+                      : "border-transparent text-muted-foreground hover:border-aws/25 hover:bg-aws/[0.04] hover:text-aws"
+                  }`}
+                >
+                  <AWSIconTile src={AWS_EXTRA_ICONS.region} className="w-3.5 h-3.5 shrink-0" alt="" />
+                  <span className="text-[9px] font-bold tracking-[0.1em] flex-1">{r.code}</span>
+                  <span className="text-[7px] uppercase tracking-wider opacity-70">{r.name}</span>
+                  <span className="text-[7px] text-neon tabular-nums" title="Availability Zones">{r.azs}az</span>
+                  <ChevronRight className="w-3 h-3 opacity-50" />
+                </button>
+              ))}
+            </div>
+          </GlassPanel>
+        </div>
+      </div>
+
+      {/* KNOWLEDGE GRID */}
+      <div className="grid md:grid-cols-3 gap-3">
+        <Callout type="info" title="Region = geographic cluster">
+          A Region is a physical location with multiple, isolated Availability Zones. Data is not
+          replicated across Regions unless you configure it — choose Regions for latency, cost and
+          compliance.
+        </Callout>
+        <Callout type="tip" title="AZ = your high-availability unit" delay={0.05}>
+          Availability Zones are physically separate data centers with independent power, cooling and
+          networking, connected by low-latency fiber. Spread instances across 2+ AZs to survive
+          data-center failure.
+        </Callout>
+        <Callout type="exam" title="Edge locations ≠ Regions" delay={0.1}>
+          CloudFront edge locations (600+) cache content close to users — they are NOT Regions and
+          can&apos;t run EC2. Exams love this distinction. More PoPs = lower Time-To-First-Byte.
+        </Callout>
+      </div>
+    </div>
+  );
+}
