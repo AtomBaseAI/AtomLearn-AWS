@@ -244,3 +244,34 @@ Stage Summary:
 - App now surfaces 14 modules: the 11 originals + RDS (12), CloudWatch (13), Containers ECS/EKS/ECR (14) — all wired, all interactive, all E2E-verified.
 - Rolling-deploy convergence bug fixed in containers.tsx (mid-deploy chaos no longer stalls deploys; replacements join at active image version).
 - Hotkeys for new modules: "=" → RDS, "[" → CloudWatch, "]" → Containers.
+
+---
+Task ID: 9
+Agent: main (orchestrator)
+Task: Reset buttons → icon-only rounded-full; remove unused files/components (double-checked); lint.
+
+Work Log:
+- sim-controls.tsx RESET button: removed "RESET" text, now icon-only RotateCcw in a rounded-full circular button (p-2, title="Reset", aria-label kept, hover border-aws tint). Single shared component → applies to ALL 14 modules (verified: every module passes onReset to SimControls; grep found no standalone reset buttons).
+- UNUSED-FILE ANALYSIS (three passes): (1) import-reachability script over src/** (roots: app entry conventions, handles @/ alias + dynamic imports) → 50 unreachable; (2) manual grep double-check per category → discovered ui/toaster.tsx IS live (layout.tsx mounts <Toaster/>) so toaster+toast+use-toast chain KEPT; api/route.ts is a Next route convention entry (served /api, returns {"message":"Hello, world!"}) KEPT; (3) per-file basename grep + post-removal reachability re-run → zero dead files left.
+- REMOVED (48 files): 45 unused shadcn ui components (accordion, alert-dialog, alert, aspect-ratio, avatar, badge, breadcrumb, button, calendar, card, carousel, chart, checkbox, collapsible, command, context-menu, dialog, drawer, dropdown-menu, form, hover-card, input-otp, input, label, menubar, navigation-menu, pagination, popover, progress, radio-group, resizable, scroll-area, select, separator, sheet, sidebar, skeleton, slider, sonner, switch, table, tabs, textarea, toggle-group, toggle, tooltip), hooks/use-mobile.ts (only consumer was unused ui/sidebar), lib/db.ts (zero refs; prisma folder/package deps untouched), services/module-placeholder.tsx (zero refs since registry rewrite).
+- public/icons/aws: all 34 SVGs verified referenced (arch + extra maps) — none removed.
+- Verification: bun run lint PASS (exit 0), bunx tsc --noEmit clean (only pre-existing examples/skills noise), dev.log 200s. Agent Browser E2E: app boots, S3 module RUN → circular icon-only reset (borderRadius 9999px, no text, svg present) → RESET click works, zero page errors, /api healthy. Screenshot verified.
+
+Stage Summary:
+- All reset buttons across the app are now circular icon-only (rounded-full) with tooltip title — via the shared SimControls component.
+- src reduced from 82 to 33 files (48 dead files removed); live ui chain (toaster/toast/use-toast) and api/route.ts intentionally kept.
+
+---
+Task ID: 10
+Agent: main (orchestrator)
+Task: Remove unused db/prisma stack; retitle app to "AWS | ATOM LEARN".
+
+Work Log:
+- Audit: zero prisma/@prisma/db references anywhere in src/ (src/lib/db.ts already removed in Task 9) — the app never touches a database.
+- Removed: bun remove @prisma/client prisma (2 packages); deleted prisma/ (schema.prisma) and db/ (custom.db SQLite); removed the 4 db:* scripts from package.json; emptied .env (contained only DATABASE_URL). Sandbox tests/database-runtime-build.sh references were noted as platform harness, intentionally untouched.
+- layout.tsx metadata.title: "AWS NEXUS // Interactive Cloud Visualizer" → "AWS | ATOM LEARN".
+- Verification: bun run lint PASS (exit 0); bunx tsc --noEmit clean; Agent Browser: document title = "AWS | ATOM LEARN", app boots, zero page errors; dev.log 200s.
+
+Stage Summary:
+- Project is fully database-free (no prisma, no sqlite, no db scripts, no env vars); package.json + lockfile clean.
+- Browser tab title is now "AWS | ATOM LEARN".

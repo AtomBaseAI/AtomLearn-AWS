@@ -61,11 +61,11 @@ export function SimControls({
           whileHover={{ scale: 1.05, rotate: -8 }}
           whileTap={{ scale: 0.93 }}
           onClick={onReset}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.18em] border border-foreground/25 text-foreground/70 bg-black/50 backdrop-blur-md cyber-cut-sm hover:border-aws/50 hover:text-aws"
+          className="flex items-center justify-center rounded-full p-2 border border-foreground/25 text-foreground/70 bg-black/50 backdrop-blur-md hover:border-aws/50 hover:text-aws transition-colors"
           aria-label="Reset simulation"
+          title="Reset"
         >
-          <RotateCcw className="w-3 h-3" />
-          RESET
+          <RotateCcw className="w-3.5 h-3.5" />
         </motion.button>
       </div>
       {hint && <p className="w-full text-[8px] text-muted-foreground/70 tracking-wider uppercase">{hint}</p>}

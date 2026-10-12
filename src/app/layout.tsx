@@ -11,7 +11,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AWS NEXUS // Interactive Cloud Visualizer",
+  title: "AWS | ATOM LEARN",
   description:
     "Fully graphical interactive web experience for AWS: Global Infrastructure, IAM, S3, VPC, EC2, ELB, Lambda, API Gateway, SNS, SQS and CloudFront — visualized in real-time 3D and animated flow diagrams.",
   keywords: [
