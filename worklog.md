@@ -317,3 +317,56 @@ Work Log:
 Stage Summary:
 - Cables now behave like a real cable map (reference image): dense coastline-hugging ocean paths, mathematically guaranteed zero ground crossings against the same land polygons the globe renders, Suez transit preserved.
 - UPLINK BEAM auto-hides whenever UNDERSEA CABLES is ON and returns when toggled OFF; legend reflects the mode.
+
+---
+Task ID: 14
+Agent: main (orchestrator)
+Task: Remove LIVE OPS FEED; add continental filter badges inside ALL REGIONS (North America, South America, Europe, Middle East, Africa, Asia Pacific, Australia and New Zealand) with ALL selected by default; expand the card height to cover the removed feed.
+
+Work Log:
+- Removed LIVE OPS FEED entirely from src/components/services/global-infrastructure.tsx: panel JSX, ops state, feedRef/opsIdRef refs, push-interval + auto-scroll effects, and the OPS_EVENTS/OpsLine/Tone/TONE_TEXT/utcNow telemetry block (~60 lines). useTelemetry (top stat chips) kept.
+- Continent taxonomy: new Continent union type; every one of the 28 regions tagged — NORTH AMERICA 6 (us-east-1/2, us-west-1/2, ca-central-1, ca-west-1), SOUTH AMERICA 1 (sa-east-1), EUROPE 7 (all eu-*), MIDDLE EAST 3 (me-south-1, me-central-1, il-central-1), AFRICA 1 (af-south-1), ASIA PACIFIC 8 (ap-south-*, ap-northeast-*, ap-southeast-1/3, ap-east-1), AUSTRALIA AND NEW ZEALAND 2 (ap-southeast-2 Sydney, ap-southeast-4 Melbourne).
+- CONTINENT_FILTERS constant (ALL + the 7 user-specified geographies, exact labels); cont state defaults to "ALL"; filteredRegions memo.
+- ALL REGIONS card rebuilt: role=tablist badge row (flex-wrap, tiny uppercase bold, aws glow on active, per-badge region counts, aria-selected + title tooltips) + region list filtered by badge with framer-motion AnimatePresence popLayout + layout transitions (fade/scale in-out, items reflow smoothly). Subtitle now shows filtered count "N/28 NODES TRACKED".
+- Height expansion: list max-h 240px → 440px; panel is flex-col with flex-1 min-h-0 list so it also auto-stretches into the feed's space on desktop (measured panel height 584px vs ~330px before).
+- Verification: bun run lint PASS (0 problems); bunx tsc --noEmit clean for src; Agent Browser E2E — LIVE OPS FEED confirmed absent (only ORBITAL VIEW / REGION UPLINK / ALL REGIONS h3s), 8 badges with correct counts, ALL preselected 28/28 with 28 list items, EUROPE→7 eu-* regions (7/28), AFRICA→af-south-1 (1/28), AUSTRALIA AND NEW ZEALAND→Sydney+Melbourne (2/28), MIDDLE EAST→me-south-1/me-central-1/il-central-1 (3/28); selecting Sydney inside a filtered list updates REGION UPLINK to TARGET: AP-SOUTHEAST-2 and the node stays highlighted after returning to ALL (28/28); mobile 390px scrollWidth=390 (no overflow, badges wrap 3 rows); zero page errors; dev.log all 200s. Screenshots: /home/z/shots/badges-all.png + badges-mobile.png.
+
+Stage Summary:
+- LIVE OPS FEED is gone; its vertical space is absorbed by a taller ALL REGIONS card (list max-h 240→440px, flex-1 stretch on desktop).
+- ALL REGIONS now has 8 working geographic filter badges (ALL default + the 7 requested continents) with live counts, animated list filtering, and selection that persists across filter changes.
+
+---
+Task ID: 15
+Agent: main (orchestrator)
+Task: ALL REGIONS — auto-rotate OFF + camera fly-to on continent/region selection; add tab views below the module title card (GENERAL / REGIONS BEST USE CASE / AVAILABILITY ZONE USE CASE) with animated structural diagrams.
+
+Work Log:
+- CAMERA FLY-TO (global-infrastructure.tsx): new FocusRig component inside the Canvas — every selection (globe node click, ALL REGIONS list click, continent badge) now sets a focus {lat,lon}; FocusRig exponentially lerps the camera around the sphere to face it (frame-rate independent via delta, direction interpolated on the unit sphere + radius preserved — first Cartesian-lerp attempt cut chords and shrank the camera radius 7.43→3.56, caught via window debug telemetry and fixed with normalize()). Manual drag fires OrbitControls "start" which cancels auto-focus until the next selection. selectRegion()/selectCont() helpers: any selection sets autoRotate=false (verified aria-pressed flips); continent badge also focuses the continent centroid (CONTINENT_FOCUS map: NA 43/-100, SA -14/-58, EU 50/12, ME 26/46, AF 4/20, APAC 22/106, AU/NZ -31/141) and auto-selects that continent's first region if the current selection is elsewhere, keeping REGION UPLINK/AZ DETAIL coherent; re-enabling AUTO-ROTATE clears focus so the two never fight.
+- TABS (below the page-level module title card): role=tablist with 3 tabs — 01 GENERAL (all previous content), 02 REGIONS BEST USE CASE, 03 AVAILABILITY ZONE USE CASE. New file src/components/services/infra-usecases.tsx exports RegionsUseCase + AzUseCase.
+- REGIONS TAB: definition strip ("A Region is a separate geographic area where AWS operates…"); SVG latency diagram (animated dashed packet flows USER CLUSTERS → region chips: Mumbai→ap-south-1 12ms, Singapore→ap-southeast-1 4ms, London→eu-west-2 9ms, plus red dashed 218ms "AVOID" route Mumbai→us-east-1; SMIL animateMotion packet dots along every path; legend row); 3 use-case cards (REDUCE LATENCY / DATA RESIDENCY / DISASTER RECOVERY); interactive CROSS-REGION DR panel — US-EAST-1 PRIMARY — ACTIVE 94% ⇄ EU-WEST-1 STANDBY — PILOT LIGHT 12% with animated CRR replication line, SIMULATE FAILOVER button flips primary to OFFLINE 0% / secondary to ACTIVE — FAILOVER 96%, failover path line activates, Route53 health checks read 0/3, button becomes RESTORE PRIMARY (RPO ≈ 1s · RTO < 60s).
+- AZ TAB: definition strip ("An AZ is an isolated location within an AWS Region…"); AZ ISOLATION MAP structural diagram — REGION · AP-SOUTH-1 (MUMBAI) frame containing 3 AZ columns (ap-south-1a/b/c with AZ IDs, 1-2 data-center blocks each, EC2 instance chips) fed by animated traffic connectors (mint packet dots drop into each column); CHAOS CONTROLS — FAIL 1A/1B/1C toggle buttons: failed AZ turns red (ISOLATED stamp, ✕ LINK DOWN, instances struck through), traffic reroutes (uptime bar holds 99.99% + "ZERO DOWNTIME — REROUTED → 1A · 1C"), killing all three shows 0.00% "TOTAL OUTAGE — ALL AZs DOWN", RESTORE ALL resets; 3 use-case cards (IMPROVE AVAILABILITY / REDUCE DOWNTIME / ISOLATED · FIBER-LINKED).
+- Verification: bun run lint PASS (0 problems); bunx tsc --noEmit clean for src; Agent Browser E2E — 3 tabs render with GENERAL preselected; EUROPE badge → AUTO-ROTATE OFF + camera flies to Europe; SOUTH AMERICA badge → SA dead-center with sa-east-1 beam (TRACE -23.5/-46.6); ALL→Tokyo list click → Tokyo dead-center facing user (TRACE 35.7/139.7, AZ 1a–d); REGIONS tab: diagram + cards + failover sim (roles swap, health 0/3, restore works); AZ tab: 3/3 → FAIL 1B (2/3, ISOLATED, 99.99% rerouted) → FAIL 1A+1C (0/3, 0.00% TOTAL OUTAGE) → restore (3/3 NOMINAL); GENERAL remounts globe with state persisted; mobile 390px scrollWidth=390 (diagram scrolls inside its panel, cards stack); zero page errors; dev.log all 200s. Screenshots: /home/z/shots/focus-{europe,sa,tokyo}.png, regions-tab.png, az-tab-{healthy,outage}.png, regions-mobile.png.
+
+Stage Summary:
+- Selecting any continent badge or region now stops auto-rotation and smoothly flies the camera so the selection faces the user (sphere-space interpolation, drag takes over, AUTO-ROTATE toggle re-clears focus).
+- The module is now tabbed below its title card: GENERAL (globe console), REGIONS BEST USE CASE (latency routing diagram + interactive cross-region DR failover), AVAILABILITY ZONE USE CASE (region→AZ→DC→instance structural map with per-AZ chaos controls and availability meter).
+
+---
+Task ID: 15-b
+Agent: main (orchestrator)
+Task: "for AVAILABILITY ZONE usecase use better animation to showcase" — upgrade the AZ tab from a static isolation map into a live, self-running structural showcase.
+
+Work Log:
+- Rebuilt AzUseCase (src/components/services/infra-usecases.tsx) as an "AZ OPERATIONS THEATER": a self-running scripted failover simulation of REGION AP-SOUTH-1 (MUMBAI).
+- SCENARIO ENGINE: 5-step looping script (NOMINAL FLOW → FAIL AZ 1A → RESTORE AZ 1A → FAIL AZ 1C → FULL MESH) with per-step hold timers; auto demo is ON by default so the showcase runs the moment the tab opens; scenario stepper chips (click to jump to any step, auto continues from there), NOW: label, and a linear engine progress bar under the stepper.
+- STAGED BUILD-IN: region frame scales in → AZ towers rise staggered → per-DC instance racks light up as staggered blinking LED grids (RackLed component: mint glow blink healthy / fast red flicker when isolated).
+- PER-AZ TOWER VISUALS: radar sweep gradient line looping inside every tower (mint healthy / red down), trunk connector with falling packet dots and live LOAD SHARE % label, status chip (ACTIVE/ISOLATED), ✕ LINK DOWN stamp, DC blocks with Server icon + power LED + 4x2 LED rack, load bar, EC2 instance chips, and a one-shot red SHOCKWAVE ring (AnimatePresence, scale 0.55→1.28 fade) plus a 3px shake keyframe when an AZ fails.
+- LIVE LOAD REDISTRIBUTION: shareFor() splits 100% across healthy AZs (33/33/34 → 50/50 → 100 → 0) with animated bars; per-AZ PKT/S counters (deterministic hash base + tick wobble) scale with share; inbound gateway trunk shows 3 animated lanes + total PKT/S routed, goes red "GATEWAY DRAINING / 0 PKT/S" on total outage.
+- CROSS-AZ REPLICATION MESH: three a⇄b / a⇄c / b⇄c lanes with bidirectional moving pulses and SYNC · <2MS label; a lane flips to red "PARTNER ISOLATED ✕" when either endpoint is down.
+- LEDGER + LOG: SERVICE AVAILABILITY bar (99.99% holds through failures, 0.00% total outage), ROUTE53 HEALTH CHECKS chips per AZ (pulsing ✓ PASSING / ✕ FAILING), FAILOVER EVENTS counter, and a 4-line SCENARIO LOG — UTC (aria-live, newest first, fading opacity) fed by every scripted/manual event.
+- CONTROLS: per-AZ FAIL/RESTORE buttons (manual interrupt pauses auto demo), RESTORE ALL, and an AUTO DEMO ON/OFF toggle (Play/Pause icon, magenta glow) that restarts the script from step 1.
+- BUG FIX: toggleAz used closure state, so 3 burst clicks in the same frame overwrote each other (last-click-wins, found via E2E burst test) — switched to a functional setState update so rapid clicks compose; verified 3 simultaneous FAIL clicks → 0/3 TOTAL OUTAGE.
+- Verification: bun run lint PASS; bunx tsc --noEmit clean; Agent Browser E2E — auto demo runs on tab open (NOW: NOMINAL FLOW → FAIL AZ 1C observed, shares 0/50/50, uptime 99.99%, health chips flip ✕ FAILING, UTC log entries); manual FAIL 1B interrupt → 1/3 serving + 3× PARTNER ISOLATED; total outage → 0/3, 0.00%, GATEWAY DRAINING, "TOTAL OUTAGE — ALL AZs DOWN" span confirmed; ALL restore + AUTO DEMO re-engage → NOMINAL FLOW 3/3; burst-click composition fix verified; GENERAL tab remounts globe (AUTO-ROTATE ON, canvas ok), REGIONS tab intact; mobile 390px scrollWidth=390 no overflow; zero page/console errors; dev.log all 200s. Screenshots: /home/z/shots/az-theater-{healthy,failover,outage,full,mobile}.png.
+
+Stage Summary:
+- The AZ use-case tab is now a self-running cinematic showcase: scripted failovers fire automatically with shockwaves, rack LED flicker, live load redistribution, replication mesh degradation, health-check flips and a UTC scenario log — while every control (stepper jump, per-AZ fail/restore, auto demo) stays fully manual-overrideable.

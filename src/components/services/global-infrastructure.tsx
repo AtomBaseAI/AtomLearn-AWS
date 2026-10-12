@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Html, Billboard } from "@react-three/drei";
 import * as THREE from "three";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,11 +9,21 @@ import { GlassPanel } from "@/components/shared/glass-panel";
 import { Callout } from "@/components/shared/callout";
 import { StatChip } from "@/components/shared/typography";
 import { AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
-import { Globe2, RotateCw, Waves, MapPin, ChevronRight, Activity, Wifi, Server, ShieldAlert } from "lucide-react";
+import { RegionsUseCase, AzUseCase } from "./infra-usecases";
+import { Globe2, RotateCw, Waves, MapPin, ChevronRight, Activity, Wifi, Server, ShieldAlert, Network, Building2 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* DATA                                                                */
 /* ------------------------------------------------------------------ */
+
+type Continent =
+  | "NORTH AMERICA"
+  | "SOUTH AMERICA"
+  | "EUROPE"
+  | "MIDDLE EAST"
+  | "AFRICA"
+  | "ASIA PACIFIC"
+  | "AUSTRALIA AND NEW ZEALAND";
 
 interface Region {
   code: string;
@@ -23,38 +33,62 @@ interface Region {
   lon: number;
   azs: number;
   since: number;
+  continent: Continent;
 }
 
 const REGIONS: Region[] = [
-  { code: "us-east-1", name: "N. VIRGINIA", city: "Ashburn, US", lat: 38.9, lon: -77.4, azs: 6, since: 2006 },
-  { code: "us-east-2", name: "OHIO", city: "Columbus, US", lat: 40.4, lon: -82.7, azs: 3, since: 2016 },
-  { code: "us-west-1", name: "N. CALIFORNIA", city: "San Jose, US", lat: 37.4, lon: -121.9, azs: 3, since: 2009 },
-  { code: "us-west-2", name: "OREGON", city: "Portland, US", lat: 45.6, lon: -121.9, azs: 4, since: 2011 },
-  { code: "ca-central-1", name: "CANADA CENTRAL", city: "Montréal, CA", lat: 45.4, lon: -75.7, azs: 3, since: 2016 },
-  { code: "ca-west-1", name: "CALGARY", city: "Calgary, CA", lat: 51.0, lon: -114.1, azs: 3, since: 2023 },
-  { code: "sa-east-1", name: "SÃO PAULO", city: "São Paulo, BR", lat: -23.5, lon: -46.6, azs: 3, since: 2011 },
-  { code: "eu-west-1", name: "IRELAND", city: "Dublin, IE", lat: 53.3, lon: -6.3, azs: 3, since: 2007 },
-  { code: "eu-west-2", name: "LONDON", city: "London, UK", lat: 51.5, lon: -0.1, azs: 3, since: 2016 },
-  { code: "eu-west-3", name: "PARIS", city: "Paris, FR", lat: 48.9, lon: 2.4, azs: 3, since: 2017 },
-  { code: "eu-central-1", name: "FRANKFURT", city: "Frankfurt, DE", lat: 50.1, lon: 8.7, azs: 3, since: 2014 },
-  { code: "eu-north-1", name: "STOCKHOLM", city: "Stockholm, SE", lat: 59.3, lon: 18.1, azs: 3, since: 2018 },
-  { code: "eu-south-1", name: "MILAN", city: "Milan, IT", lat: 45.5, lon: 9.2, azs: 3, since: 2020 },
-  { code: "eu-south-2", name: "SPAIN", city: "Aragón, ES", lat: 40.4, lon: -3.7, azs: 3, since: 2022 },
-  { code: "ap-south-1", name: "MUMBAI", city: "Mumbai, IN", lat: 19.1, lon: 72.9, azs: 3, since: 2016 },
-  { code: "ap-south-2", name: "HYDERABAD", city: "Hyderabad, IN", lat: 17.4, lon: 78.5, azs: 3, since: 2022 },
-  { code: "ap-northeast-1", name: "TOKYO", city: "Tokyo, JP", lat: 35.7, lon: 139.7, azs: 4, since: 2011 },
-  { code: "ap-northeast-2", name: "SEOUL", city: "Seoul, KR", lat: 37.6, lon: 127.0, azs: 4, since: 2016 },
-  { code: "ap-northeast-3", name: "OSAKA", city: "Osaka, JP", lat: 34.7, lon: 135.5, azs: 3, since: 2021 },
-  { code: "ap-southeast-1", name: "SINGAPORE", city: "Singapore, SG", lat: 1.35, lon: 103.8, azs: 3, since: 2010 },
-  { code: "ap-southeast-2", name: "SYDNEY", city: "Sydney, AU", lat: -33.9, lon: 151.2, azs: 3, since: 2012 },
-  { code: "ap-southeast-3", name: "JAKARTA", city: "Jakarta, ID", lat: -6.2, lon: 106.8, azs: 3, since: 2021 },
-  { code: "ap-southeast-4", name: "MELBOURNE", city: "Melbourne, AU", lat: -37.8, lon: 145.0, azs: 3, since: 2023 },
-  { code: "ap-east-1", name: "HONG KONG", city: "Hong Kong, CN", lat: 22.3, lon: 114.2, azs: 3, since: 2019 },
-  { code: "me-south-1", name: "BAHRAIN", city: "Manama, BH", lat: 26.1, lon: 50.5, azs: 3, since: 2019 },
-  { code: "me-central-1", name: "UAE", city: "Dubai, AE", lat: 24.5, lon: 54.4, azs: 3, since: 2022 },
-  { code: "af-south-1", name: "CAPE TOWN", city: "Cape Town, ZA", lat: -33.9, lon: 18.4, azs: 3, since: 2020 },
-  { code: "il-central-1", name: "ISRAEL", city: "Tel Aviv, IL", lat: 32.1, lon: 34.9, azs: 3, since: 2023 },
+  { code: "us-east-1", name: "N. VIRGINIA", city: "Ashburn, US", lat: 38.9, lon: -77.4, azs: 6, since: 2006, continent: "NORTH AMERICA" },
+  { code: "us-east-2", name: "OHIO", city: "Columbus, US", lat: 40.4, lon: -82.7, azs: 3, since: 2016, continent: "NORTH AMERICA" },
+  { code: "us-west-1", name: "N. CALIFORNIA", city: "San Jose, US", lat: 37.4, lon: -121.9, azs: 3, since: 2009, continent: "NORTH AMERICA" },
+  { code: "us-west-2", name: "OREGON", city: "Portland, US", lat: 45.6, lon: -121.9, azs: 4, since: 2011, continent: "NORTH AMERICA" },
+  { code: "ca-central-1", name: "CANADA CENTRAL", city: "Montréal, CA", lat: 45.4, lon: -75.7, azs: 3, since: 2016, continent: "NORTH AMERICA" },
+  { code: "ca-west-1", name: "CALGARY", city: "Calgary, CA", lat: 51.0, lon: -114.1, azs: 3, since: 2023, continent: "NORTH AMERICA" },
+  { code: "sa-east-1", name: "SÃO PAULO", city: "São Paulo, BR", lat: -23.5, lon: -46.6, azs: 3, since: 2011, continent: "SOUTH AMERICA" },
+  { code: "eu-west-1", name: "IRELAND", city: "Dublin, IE", lat: 53.3, lon: -6.3, azs: 3, since: 2007, continent: "EUROPE" },
+  { code: "eu-west-2", name: "LONDON", city: "London, UK", lat: 51.5, lon: -0.1, azs: 3, since: 2016, continent: "EUROPE" },
+  { code: "eu-west-3", name: "PARIS", city: "Paris, FR", lat: 48.9, lon: 2.4, azs: 3, since: 2017, continent: "EUROPE" },
+  { code: "eu-central-1", name: "FRANKFURT", city: "Frankfurt, DE", lat: 50.1, lon: 8.7, azs: 3, since: 2014, continent: "EUROPE" },
+  { code: "eu-north-1", name: "STOCKHOLM", city: "Stockholm, SE", lat: 59.3, lon: 18.1, azs: 3, since: 2018, continent: "EUROPE" },
+  { code: "eu-south-1", name: "MILAN", city: "Milan, IT", lat: 45.5, lon: 9.2, azs: 3, since: 2020, continent: "EUROPE" },
+  { code: "eu-south-2", name: "SPAIN", city: "Aragón, ES", lat: 40.4, lon: -3.7, azs: 3, since: 2022, continent: "EUROPE" },
+  { code: "ap-south-1", name: "MUMBAI", city: "Mumbai, IN", lat: 19.1, lon: 72.9, azs: 3, since: 2016, continent: "ASIA PACIFIC" },
+  { code: "ap-south-2", name: "HYDERABAD", city: "Hyderabad, IN", lat: 17.4, lon: 78.5, azs: 3, since: 2022, continent: "ASIA PACIFIC" },
+  { code: "ap-northeast-1", name: "TOKYO", city: "Tokyo, JP", lat: 35.7, lon: 139.7, azs: 4, since: 2011, continent: "ASIA PACIFIC" },
+  { code: "ap-northeast-2", name: "SEOUL", city: "Seoul, KR", lat: 37.6, lon: 127.0, azs: 4, since: 2016, continent: "ASIA PACIFIC" },
+  { code: "ap-northeast-3", name: "OSAKA", city: "Osaka, JP", lat: 34.7, lon: 135.5, azs: 3, since: 2021, continent: "ASIA PACIFIC" },
+  { code: "ap-southeast-1", name: "SINGAPORE", city: "Singapore, SG", lat: 1.35, lon: 103.8, azs: 3, since: 2010, continent: "ASIA PACIFIC" },
+  { code: "ap-southeast-2", name: "SYDNEY", city: "Sydney, AU", lat: -33.9, lon: 151.2, azs: 3, since: 2012, continent: "AUSTRALIA AND NEW ZEALAND" },
+  { code: "ap-southeast-3", name: "JAKARTA", city: "Jakarta, ID", lat: -6.2, lon: 106.8, azs: 3, since: 2021, continent: "ASIA PACIFIC" },
+  { code: "ap-southeast-4", name: "MELBOURNE", city: "Melbourne, AU", lat: -37.8, lon: 145.0, azs: 3, since: 2023, continent: "AUSTRALIA AND NEW ZEALAND" },
+  { code: "ap-east-1", name: "HONG KONG", city: "Hong Kong, CN", lat: 22.3, lon: 114.2, azs: 3, since: 2019, continent: "ASIA PACIFIC" },
+  { code: "me-south-1", name: "BAHRAIN", city: "Manama, BH", lat: 26.1, lon: 50.5, azs: 3, since: 2019, continent: "MIDDLE EAST" },
+  { code: "me-central-1", name: "UAE", city: "Dubai, AE", lat: 24.5, lon: 54.4, azs: 3, since: 2022, continent: "MIDDLE EAST" },
+  { code: "af-south-1", name: "CAPE TOWN", city: "Cape Town, ZA", lat: -33.9, lon: 18.4, azs: 3, since: 2020, continent: "AFRICA" },
+  { code: "il-central-1", name: "ISRAEL", city: "Tel Aviv, IL", lat: 32.1, lon: 34.9, azs: 3, since: 2023, continent: "MIDDLE EAST" },
 ];
+
+/** Geographic filter badges for the ALL REGIONS card — "ALL" shows every region. */
+const CONTINENT_FILTERS: Array<{ id: "ALL" | Continent; label: string }> = [
+  { id: "ALL", label: "ALL" },
+  { id: "NORTH AMERICA", label: "NORTH AMERICA" },
+  { id: "SOUTH AMERICA", label: "SOUTH AMERICA" },
+  { id: "EUROPE", label: "EUROPE" },
+  { id: "MIDDLE EAST", label: "MIDDLE EAST" },
+  { id: "AFRICA", label: "AFRICA" },
+  { id: "ASIA PACIFIC", label: "ASIA PACIFIC" },
+  { id: "AUSTRALIA AND NEW ZEALAND", label: "AUSTRALIA AND NEW ZEALAND" },
+];
+
+/** Camera fly-to target when a continent badge is selected (continent centroid). */
+const CONTINENT_FOCUS: Record<Continent, { lat: number; lon: number }> = {
+  "NORTH AMERICA": { lat: 43, lon: -100 },
+  "SOUTH AMERICA": { lat: -14, lon: -58 },
+  EUROPE: { lat: 50, lon: 12 },
+  "MIDDLE EAST": { lat: 26, lon: 46 },
+  AFRICA: { lat: 4, lon: 20 },
+  "ASIA PACIFIC": { lat: 22, lon: 106 },
+  "AUSTRALIA AND NEW ZEALAND": { lat: -31, lon: 141 },
+};
 
 const ARC_PAIRS: Array<[string, string]> = [
   ["us-east-1", "eu-west-1"],
@@ -742,18 +776,64 @@ function EdgePoPs() {
   );
 }
 
+/**
+ * Smoothly flies the camera so the focused lat/lon faces the user.
+ * Any manual drag takes over and cancels the auto-focus until the next selection.
+ */
+function FocusRig({ focus }: { focus: { lat: number; lon: number } | null }) {
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as unknown as {
+    update: () => void;
+    addEventListener: (type: string, fn: () => void) => void;
+    removeEventListener: (type: string, fn: () => void) => void;
+  } | null;
+  const dirRef = useRef<THREE.Vector3 | null>(null);
+  const userTookOver = useRef(false);
+
+  useEffect(() => {
+    dirRef.current = focus ? latLonToVec3(focus.lat, focus.lon, 1).normalize() : null;
+    userTookOver.current = false;
+  }, [focus]);
+
+  useEffect(() => {
+    if (!controls) return;
+    const onStart = () => {
+      userTookOver.current = true;
+    };
+    controls.addEventListener("start", onStart);
+    return () => controls.removeEventListener("start", onStart);
+  }, [controls]);
+
+  useFrame((_, delta) => {
+    const dir = dirRef.current;
+    if (!dir || userTookOver.current) return;
+    // Exponential, frame-rate-independent smoothing…
+    const k = 1 - Math.exp(-3.2 * delta);
+    // …but interpolate on the SPHERE (normalize the direction) so the chord
+    // never cuts inside — the camera keeps its distance while swinging around.
+    const radius = camera.position.length();
+    const newDir = camera.position.clone().divideScalar(radius).lerp(dir, k).normalize();
+    camera.position.copy(newDir.multiplyScalar(radius));
+    if (controls) controls.update();
+  });
+
+  return null;
+}
+
 function GlobeScene({
   selectedCode,
   onSelect,
   showArcs,
   showCables,
   autoRotate,
+  focus,
 }: {
   selectedCode: string;
   onSelect: (r: Region) => void;
   showArcs: boolean;
   showCables: boolean;
   autoRotate: boolean;
+  focus: { lat: number; lon: number } | null;
 }) {
   const regionsById = useMemo(() => new Map(REGIONS.map((r) => [r.code, r])), []);
 
@@ -773,6 +853,7 @@ function GlobeScene({
       {showArcs && <Arcs regionsById={regionsById} selectedCode={selectedCode} />}
       {showCables && <UnderseaCables />}
       <EdgePoPs />
+      <FocusRig focus={focus} />
       {REGIONS.map((r) => (
         <RegionMarker
           key={r.code}
@@ -801,41 +882,6 @@ function GlobeScene({
 /* RUNTIME TELEMETRY (live details)                                    */
 /* ------------------------------------------------------------------ */
 
-type Tone = "mint" | "aws" | "magenta" | "danger";
-
-const OPS_EVENTS: Array<{ tone: Tone; gen: (r: Region) => string }> = [
-  { tone: "mint", gen: (r) => `health check 100% — ${r.azs}/${r.azs} AZs nominal` },
-  { tone: "aws", gen: (r) => `autoscaling: +${1 + Math.floor(Math.random() * 3)} instances @ ${r.code}` },
-  { tone: "aws", gen: (r) => `edge cache fill ${(85 + Math.random() * 14).toFixed(1)}% — ${r.city.split(",")[0]}` },
-  { tone: "magenta", gen: (r) => `inter-region CRR sync ${8 + Math.floor(Math.random() * 22)}ms → ${r.code}` },
-  { tone: "mint", gen: (r) => `route53 resolved ${r.code} — rtt ${(9 + Math.random() * 18).toFixed(0)}ms` },
-  { tone: "danger", gen: (r) => `ddos attempt mitigated @ ${r.code} — shield 4.${Math.floor(Math.random() * 9)}G pps` },
-  { tone: "aws", gen: (r) => `s3 replication storm draining → ${r.code}` },
-  { tone: "mint", gen: (r) => `lambda warm pool rebalanced @ ${r.code}` },
-  { tone: "magenta", gen: (r) => `failover drill clean — ${r.code} delta sync 0 drift` },
-  { tone: "aws", gen: (r) => `cloudfront purge propagated → ${3 + Math.floor(Math.random() * 40)} edges` },
-  { tone: "mint", gen: (r) => `direct connect: ${(1 + Math.random() * 40).toFixed(0)}Gbps uplink healthy` },
-  { tone: "danger", gen: (r) => `spot interruption notice drained — ${r.code} fleet rebalanced` },
-];
-
-interface OpsLine {
-  id: number;
-  time: string;
-  text: string;
-  tone: Tone;
-}
-
-const TONE_TEXT: Record<Tone, string> = {
-  mint: "text-mint",
-  aws: "text-aws",
-  magenta: "text-magenta",
-  danger: "text-danger",
-};
-
-function utcNow(): string {
-  return new Date().toISOString().slice(11, 19);
-}
-
 function useTelemetry() {
   const [tele, setTele] = useState({ rps: 842317, gbps: 14.2, vms: 1832409, edges: 601 });
   useEffect(() => {
@@ -856,17 +902,54 @@ function useTelemetry() {
 /* MAIN PANEL                                                          */
 /* ------------------------------------------------------------------ */
 
+const MODULE_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Globe2 },
+  { id: "REGIONS", label: "REGIONS BEST USE CASE", num: "02", icon: Network },
+  { id: "AZ", label: "AVAILABILITY ZONE USE CASE", num: "03", icon: Building2 },
+] as const;
+
+type ModuleTabId = (typeof MODULE_TABS)[number]["id"];
+
 export default function GlobalInfrastructure() {
   const [selected, setSelected] = useState<Region>(REGIONS[0]);
   const [autoRotate, setAutoRotate] = useState(true);
   const [showArcs, setShowArcs] = useState(true);
   const [showCables, setShowCables] = useState(false);
+  const [cont, setCont] = useState<"ALL" | Continent>("ALL");
+  const [focus, setFocus] = useState<{ lat: number; lon: number } | null>(null);
+  const [tab, setTab] = useState<ModuleTabId>("GENERAL");
   const [latency, setLatency] = useState(12);
   const [pkts, setPkts] = useState(1284);
-  const [ops, setOps] = useState<OpsLine[]>([]);
-  const opsIdRef = useRef(0);
-  const feedRef = useRef<HTMLDivElement>(null);
   const tele = useTelemetry();
+
+  /** Any region selection stops auto-rotate and flies the camera to face it. */
+  const selectRegion = (r: Region) => {
+    setSelected(r);
+    setAutoRotate(false);
+    setFocus({ lat: r.lat, lon: r.lon });
+  };
+
+  /** Continent badge: stop auto-rotate, face the continent, keep panels coherent. */
+  const selectCont = (id: "ALL" | Continent) => {
+    setCont(id);
+    if (id === "ALL") {
+      setFocus(null);
+      return;
+    }
+    setAutoRotate(false);
+    setFocus(CONTINENT_FOCUS[id]);
+    const first = REGIONS.find((r) => r.continent === id);
+    if (first && selected.continent !== id) setSelected(first);
+  };
+
+  const toggleAutoRotate = () => {
+    if (autoRotate) {
+      setAutoRotate(false);
+    } else {
+      setAutoRotate(true);
+      setFocus(null); // rotation and camera fly-to would fight each other
+    }
+  };
 
   const latencyBase = useMemo(() => Math.round(8 + Math.abs(selected.lat) * 1.1), [selected.lat]);
 
@@ -886,25 +969,11 @@ export default function GlobalInfrastructure() {
     return () => clearInterval(t);
   }, []);
 
-  // live ops feed
-  useEffect(() => {
-    const push = () => {
-      const r = REGIONS[Math.floor(Math.random() * REGIONS.length)];
-      const ev = OPS_EVENTS[Math.floor(Math.random() * OPS_EVENTS.length)];
-      opsIdRef.current += 1;
-      const line: OpsLine = { id: opsIdRef.current, time: utcNow(), text: ev.gen(r), tone: ev.tone };
-      setOps((prev) => [...prev.slice(-8), line]);
-    };
-    push();
-    const t = setInterval(push, 2100);
-    return () => clearInterval(t);
-  }, []);
-
-  // auto-scroll ops feed
-  useEffect(() => {
-    const el = feedRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [ops]);
+  // continent badge filter — "ALL" keeps the full registry visible
+  const filteredRegions = useMemo(
+    () => (cont === "ALL" ? REGIONS : REGIONS.filter((r) => r.continent === cont)),
+    [cont]
+  );
 
   const toggleBtn = (on: boolean, accent: "aws" | "magenta" | "mint" = "aws") =>
     `flex items-center gap-1.5 px-2 py-1.5 text-[8px] font-bold uppercase tracking-[0.2em] border backdrop-blur-md bg-black/60 transition-colors ${
@@ -931,6 +1000,34 @@ export default function GlobalInfrastructure() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* MODULE TABS — sits directly below the module title card */}
+      <div role="tablist" aria-label="Global infrastructure views" className="flex flex-wrap gap-1.5">
+        {MODULE_TABS.map((t) => {
+          const active = tab === t.id;
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.18em] border backdrop-blur-md transition-colors ${
+                active
+                  ? "border-aws/70 bg-aws/15 text-aws shadow-[0_0_16px_rgba(255,153,0,0.28)]"
+                  : "border-foreground/15 bg-black/50 text-muted-foreground hover:border-aws/40 hover:text-aws"
+              }`}
+            >
+              <Icon className="w-3 h-3" aria-hidden="true" />
+              <span className={`tabular-nums ${active ? "text-aws/70" : "text-muted-foreground/50"}`}>{t.num}</span>
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "GENERAL" && (
+        <>
       {/* static stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <StatChip label="REGIONS ONLINE" value="28 / 34" />
@@ -977,10 +1074,11 @@ export default function GlobalInfrastructure() {
             >
               <GlobeScene
                 selectedCode={selected.code}
-                onSelect={setSelected}
+                onSelect={selectRegion}
                 showArcs={showArcs}
                 showCables={showCables}
                 autoRotate={autoRotate}
+                focus={focus}
               />
             </Canvas>
 
@@ -988,7 +1086,7 @@ export default function GlobalInfrastructure() {
             <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1.5">
               <button
                 type="button"
-                onClick={() => setAutoRotate((v) => !v)}
+                onClick={toggleAutoRotate}
                 className={toggleBtn(autoRotate)}
                 aria-pressed={autoRotate}
               >
@@ -1076,7 +1174,7 @@ export default function GlobalInfrastructure() {
           </div>
         </GlassPanel>
 
-        {/* SIDE: selected region + ops feed + region list */}
+        {/* SIDE: selected region + continent-filtered region list */}
         <div className="flex flex-col gap-4">
           <GlassPanel title="REGION UPLINK" subtitle={`TARGET: ${selected.code.toUpperCase()}`} deep className="!p-0">
             <AnimatePresence mode="wait">
@@ -1151,50 +1249,72 @@ export default function GlobalInfrastructure() {
             </AnimatePresence>
           </GlassPanel>
 
-          <GlassPanel title="ALL REGIONS" subtitle={`${REGIONS.length} NODES TRACKED`} className="!p-0 flex-1 min-h-0">
-            <div className="p-2 max-h-[240px] overflow-y-auto cyber-scroll flex flex-col gap-1">
-              {REGIONS.map((r) => (
-                <button
-                  key={r.code}
-                  type="button"
-                  onClick={() => setSelected(r)}
-                  className={`flex items-center gap-2 px-2 py-1.5 text-left border transition-colors ${
-                    r.code === selected.code
-                      ? "border-aws/60 bg-aws/10 text-aws"
-                      : "border-transparent text-muted-foreground hover:border-aws/25 hover:bg-aws/[0.04] hover:text-aws"
-                  }`}
-                >
-                  <AWSIconTile src={AWS_EXTRA_ICONS.region} className="w-3.5 h-3.5 shrink-0" alt="" />
-                  <span className="text-[9px] font-bold tracking-[0.1em] flex-1">{r.code}</span>
-                  <span className="text-[7px] uppercase tracking-wider opacity-70">{r.name}</span>
-                  <span className="text-[7px] text-neon tabular-nums" title="Availability Zones">{r.azs}az</span>
-                  <ChevronRight className="w-3 h-3 opacity-50" />
-                </button>
-              ))}
-            </div>
-          </GlassPanel>
-
-          <GlassPanel title="LIVE OPS FEED" subtitle="AUTO-GENERATED REGION EVENTS" className="!p-0">
+          <GlassPanel
+            title="ALL REGIONS"
+            subtitle={`${filteredRegions.length}/${REGIONS.length} NODES TRACKED`}
+            className="!p-0 flex-1 min-h-0 flex flex-col"
+          >
+            {/* continent filter badges — ALL selected by default */}
             <div
-              ref={feedRef}
-              className="p-2 h-[150px] overflow-y-auto cyber-scroll flex flex-col gap-[3px]"
-              aria-live="polite"
+              className="px-2 pt-2 pb-1.5 flex flex-wrap gap-1 border-b border-foreground/10"
+              role="tablist"
+              aria-label="Filter regions by geography"
             >
-              <AnimatePresence initial={false}>
-                {ops.map((l) => (
-                  <motion.div
-                    key={l.id}
-                    initial={{ opacity: 0, x: 14 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className="text-[8.5px] leading-relaxed flex gap-1.5"
+              {CONTINENT_FILTERS.map((c) => {
+                const active = cont === c.id;
+                const count =
+                  c.id === "ALL" ? REGIONS.length : REGIONS.filter((r) => r.continent === c.id).length;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => selectCont(c.id)}
+                    title={`${count} region${count === 1 ? "" : "s"}`}
+                    className={`flex items-center gap-1 px-1.5 py-1 text-[7px] font-bold uppercase tracking-[0.14em] border backdrop-blur-md transition-colors ${
+                      active
+                        ? "border-aws/70 bg-aws/15 text-aws shadow-[0_0_12px_rgba(255,153,0,0.35)]"
+                        : "border-foreground/15 bg-black/40 text-muted-foreground hover:border-aws/40 hover:text-aws"
+                    }`}
                   >
-                    <span className="text-muted-foreground/60 tabular-nums shrink-0">{l.time}</span>
-                    <span className={`${TONE_TEXT[l.tone]} break-all`}>
-                      {">"} {l.text}
-                    </span>
-                  </motion.div>
+                    {c.label}
+                    <span className={`tabular-nums ${active ? "text-aws/80" : "opacity-60"}`}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* region list — expands to cover the retired LIVE OPS FEED height */}
+            <div
+              className="p-2 flex-1 min-h-0 max-h-[440px] overflow-y-auto cyber-scroll flex flex-col gap-1"
+              role="list"
+              aria-label="AWS regions"
+            >
+              <AnimatePresence initial={false} mode="popLayout">
+                {filteredRegions.map((r) => (
+                  <motion.button
+                    layout
+                    key={r.code}
+                    type="button"
+                    role="listitem"
+                    onClick={() => selectRegion(r)}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.18 }}
+                    className={`flex items-center gap-2 px-2 py-1.5 text-left border transition-colors ${
+                      r.code === selected.code
+                        ? "border-aws/60 bg-aws/10 text-aws"
+                        : "border-transparent text-muted-foreground hover:border-aws/25 hover:bg-aws/[0.04] hover:text-aws"
+                    }`}
+                  >
+                    <AWSIconTile src={AWS_EXTRA_ICONS.region} className="w-3.5 h-3.5 shrink-0" alt="" />
+                    <span className="text-[9px] font-bold tracking-[0.1em] flex-1">{r.code}</span>
+                    <span className="text-[7px] uppercase tracking-wider opacity-70">{r.name}</span>
+                    <span className="text-[7px] text-neon tabular-nums" title="Availability Zones">{r.azs}az</span>
+                    <ChevronRight className="w-3 h-3 opacity-50" />
+                  </motion.button>
                 ))}
               </AnimatePresence>
             </div>
@@ -1219,6 +1339,11 @@ export default function GlobalInfrastructure() {
           can&apos;t run EC2. Exams love this distinction. More PoPs = lower Time-To-First-Byte.
         </Callout>
       </div>
+        </>
+      )}
+
+      {tab === "REGIONS" && <RegionsUseCase />}
+      {tab === "AZ" && <AzUseCase />}
     </div>
   );
 }
