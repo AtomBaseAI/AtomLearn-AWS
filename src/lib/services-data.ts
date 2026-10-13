@@ -5,6 +5,14 @@ export interface ServiceStat {
   value: string;
 }
 
+export interface ServiceDoc {
+  /** full official documentation name (aria-label) */
+  title: string;
+  /** compact bracket label shown on the link button */
+  label: string;
+  url: string;
+}
+
 export interface ServiceMeta {
   id: string;
   index: string;
@@ -26,6 +34,7 @@ export interface ServiceMeta {
   description: string;
   iconId: ServiceIconId;
   stats: ServiceStat[];
+  docs?: ServiceDoc[];
 }
 
 export const SERVICES: ServiceMeta[] = [
@@ -40,6 +49,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "AWS spans 30+ geographic Regions, each a cluster of isolated Availability Zones, plus hundreds of Points of Presence for CloudFront. Explore the planet-scale network in 3D.",
     iconId: "global-infrastructure",
+    docs: [
+      {
+        title: "AWS Global Infrastructure",
+        label: "AWS Global Infrastructure",
+        url: "https://aws.amazon.com/about-aws/global-infrastructure/",
+      },
+    ],
     stats: [
       { label: "REGIONS", value: "34" },
       { label: "AZs", value: "108" },
@@ -58,6 +74,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "IAM is the zero-trust control plane: users, groups, roles and policies evaluated against an explicit-deny-first engine. Step through a live policy evaluation simulation.",
     iconId: "iam",
+    docs: [
+      {
+        title: "AWS Identity and Access Management Documentation",
+        label: "AWS IAM Documentation",
+        url: "https://docs.aws.amazon.com/iam/",
+      },
+    ],
     stats: [
       { label: "ENTITIES", value: "5 TYPES" },
       { label: "EVAL ORDER", value: "DENY>ALLOW" },
@@ -76,6 +99,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "Buckets hold objects replicated across ≥3 AZs. Watch the storage-class lifecycle, cross-region replication and versioning in action.",
     iconId: "s3",
+    docs: [
+      {
+        title: "Amazon Simple Storage Service Documentation",
+        label: "AWS S3 Documentation",
+        url: "https://docs.aws.amazon.com/s3/",
+      },
+    ],
     stats: [
       { label: "DURABILITY", value: "99.999999999%" },
       { label: "AVAILABILITY", value: "99.99%" },
@@ -94,6 +124,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "Subnets across AZs, internet gateways, NAT, route tables, security groups and NACLs — trace a packet from the internet to a private instance.",
     iconId: "vpc",
+    docs: [
+      {
+        title: "Amazon Virtual Private Cloud Documentation",
+        label: "AWS VPC Documentation",
+        url: "https://docs.aws.amazon.com/vpc/",
+      },
+    ],
     stats: [
       { label: "CIDR", value: "/16 MAX" },
       { label: "SUBNETS/AZ", value: "200" },
@@ -112,6 +149,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "750+ instance families across 8 shapes. Trigger the lifecycle state machine, resize instances and watch Auto Scaling react to load.",
     iconId: "ec2",
+    docs: [
+      {
+        title: "Amazon Elastic Compute Cloud Documentation",
+        label: "AWS EC2 Documentation",
+        url: "https://docs.aws.amazon.com/ec2/",
+      },
+    ],
     stats: [
       { label: "FAMILIES", value: "8 SHAPES" },
       { label: "TYPES", value: "750+" },
@@ -130,6 +174,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "ALB routes at Layer 7, NLB at Layer 4 with static IPs. Fire requests at a target group and watch round-robin distribution plus health-check failover.",
     iconId: "elb",
+    docs: [
+      {
+        title: "Elastic Load Balancing Documentation",
+        label: "AWS ELB Documentation",
+        url: "https://docs.aws.amazon.com/elasticloadbalancing/",
+      },
+    ],
     stats: [
       { label: "LAYERS", value: "L4 / L7" },
       { label: "ALGORITHMS", value: "RR+LC" },
@@ -148,6 +199,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "Upload code, attach triggers, pay per millisecond. Invoke a function live, compare cold vs warm starts and watch concurrency scale to zero.",
     iconId: "lambda",
+    docs: [
+      {
+        title: "AWS Lambda Documentation",
+        label: "AWS Lambda Documentation",
+        url: "https://docs.aws.amazon.com/lambda/",
+      },
+    ],
     stats: [
       { label: "TIMEOUT", value: "15 MIN" },
       { label: "MEMORY", value: "128M–10G" },
@@ -166,6 +224,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "Throttling, authorization, request validation, transformation — follow a request through every stage of the API Gateway lifecycle.",
     iconId: "api-gateway",
+    docs: [
+      {
+        title: "Amazon API Gateway Documentation",
+        label: "AWS API Gateway Documentation",
+        url: "https://docs.aws.amazon.com/apigateway/",
+      },
+    ],
     stats: [
       { label: "TYPES", value: "REST/HTTP/WS" },
       { label: "THROTTLE", value: "10K RPS" },
@@ -184,6 +249,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "Topics deliver to SQS, Lambda, HTTP, email and mobile push. Fire a message and watch the fan-out storm hit every subscriber.",
     iconId: "sns",
+    docs: [
+      {
+        title: "Amazon Simple Notification Service Documentation",
+        label: "AWS SNS Documentation",
+        url: "https://docs.aws.amazon.com/sns/",
+      },
+    ],
     stats: [
       { label: "SUBS/TOPIC", value: "12.5M+" },
       { label: "THROUGHPUT", value: "UNLIMITED" },
@@ -202,6 +274,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "Managed message queues with visibility timeouts, dead-letter queues and near-unlimited throughput. Push messages and drain the queue with consumers.",
     iconId: "sqs",
+    docs: [
+      {
+        title: "Amazon Simple Queue Service Documentation",
+        label: "AWS SQS Documentation",
+        url: "https://docs.aws.amazon.com/sqs/",
+      },
+    ],
     stats: [
       { label: "SCALE", value: "UNLIMITED" },
       { label: "RETRIES", value: "AUTOMATIC" },
@@ -220,6 +299,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "600+ edge locations cache your origin. Race a cache MISS against a cache HIT and see why latency drops from hundreds of ms to single digits.",
     iconId: "cloudfront",
+    docs: [
+      {
+        title: "Amazon CloudFront Documentation",
+        label: "AWS CloudFront Documentation",
+        url: "https://docs.aws.amazon.com/cloudfront/",
+      },
+    ],
     stats: [
       { label: "EDGE LOC", value: "600+" },
       { label: "CACHE HIT", value: "~10 MS" },
@@ -238,6 +324,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "Managed PostgreSQL, MySQL, MariaDB, Oracle and SQL Server with Aurora. Watch synchronous Multi-AZ replication, async read-replica lag, automatic failover and RDS Proxy connection pooling — live.",
     iconId: "rds",
+    docs: [
+      {
+        title: "Amazon RDS and Aurora Documentation",
+        label: "AWS RDS Documentation",
+        url: "https://docs.aws.amazon.com/rds/",
+      },
+    ],
     stats: [
       { label: "ENGINES", value: "7+" },
       { label: "MULTI-AZ", value: "SYNC" },
@@ -256,6 +349,13 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "Every service streams metrics to CloudWatch. Threshold alarms evaluate datapoints, fire SNS notifications and trigger Auto Scaling actions — follow the full signal path from metric to remediation.",
     iconId: "cloudwatch",
+    docs: [
+      {
+        title: "Amazon CloudWatch Documentation",
+        label: "AWS CloudWatch Documentation",
+        url: "https://docs.aws.amazon.com/cloudwatch/",
+      },
+    ],
     stats: [
       { label: "RESOLUTION", value: "1 SEC" },
       { label: "RETENTION", value: "15 MO" },
@@ -274,6 +374,23 @@ export const SERVICES: ServiceMeta[] = [
     description:
       "ECS schedules tasks from ECR images across EC2 or Fargate capacity; EKS runs upstream Kubernetes. Deploy a new image live, autoscale on CPU and watch tasks drain and replace with zero downtime.",
     iconId: "containers",
+    docs: [
+      {
+        title: "Amazon Elastic Container Service Documentation",
+        label: "AWS ECS Documentation",
+        url: "https://docs.aws.amazon.com/ecs/",
+      },
+      {
+        title: "Amazon Elastic Container Registry Documentation",
+        label: "AWS ECR Documentation",
+        url: "https://docs.aws.amazon.com/ecr/",
+      },
+      {
+        title: "Amazon Elastic Kubernetes Service Documentation",
+        label: "AWS EKS Documentation",
+        url: "https://docs.aws.amazon.com/eks/",
+      },
+    ],
     stats: [
       { label: "LAUNCH TYPE", value: "EC2/FARGATE" },
       { label: "ORCHESTRATOR", value: "ECS + EKS" },

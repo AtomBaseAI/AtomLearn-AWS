@@ -8,6 +8,8 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { StatChip } from "@/components/shared/typography";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { EC2Icon, AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
 import {
   Cpu,
@@ -97,6 +99,7 @@ const BTN =
 /* ------------------------------------------------------------------ */
 
 export default function EC2Visualizer() {
+  const immersive = useImmersiveView();
   /* ── PANEL A · lifecycle state machine ─────────────────────────── */
   const [state, setState] = useState<LifecycleState>("STOPPED");
   const [transition, setTransition] = useState<LinkKey | null>(null);
@@ -299,16 +302,26 @@ export default function EC2Visualizer() {
   const nodeStatus = (s: LifecycleState): NodeStatus => (state === s ? STATE_STATUS[s] : "idle");
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* ══════════ PANEL A — LIFECYCLE STATE MACHINE ══════════ */}
       <GlassPanel
         title="LIFECYCLE STATE MACHINE"
         subtitle={`instance ${instanceId} :: t3.micro · us-east-1a · user-data armed`}
         className="!p-0"
+        actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
       >
         {/* LIFECYCLE GRAPH + RIGHT RAIL */}
-        <div className="p-3 sm:p-4 grid lg:grid-cols-[minmax(0,1fr)_300px] gap-3 items-start">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="EC2 instance lifecycle state machine">
+        <div className={`p-3 sm:p-4 grid lg:grid-cols-[minmax(0,1fr)_300px] gap-3 items-start ${immersive.active ? "flex-1" : ""}`}>
+          <FlowCanvas
+            className={immersive.active ? "h-[min(540px,58vh)]" : "h-[440px] sm:h-[540px]"}
+            ariaLabel="EC2 instance lifecycle state machine"
+          >
             {/* LINKS */}
             <FlowLink d="M19,48 L32,48" status={transition === "start" ? "flowing" : "idle"} dotDuration={1.2} />
             <FlowLink d="M41,48 L55,48" status={transition === "boot" ? "flowing" : "idle"} dotDuration={1.3} />
@@ -452,6 +465,7 @@ export default function EC2Visualizer() {
         subtitle={`launch template ${selectedFamily.name.toLowerCase()} · target tracking — scale-out > 70% · scale-in < 30%`}
         delay={0.1}
         className="!p-0"
+        actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
       >
         {/* ASG VISUAL + RIGHT RAIL */}
         <div className="p-3 sm:p-4 grid lg:grid-cols-[minmax(0,1fr)_300px] gap-3 items-start">
@@ -613,8 +627,8 @@ export default function EC2Visualizer() {
         </div>
       </GlassPanel>
 
-      {/* ══════════ KNOWLEDGE ══════════ */}
-      <div className="grid md:grid-cols-3 gap-3">
+      {/* ══════════ KNOWLEDGE — hidden in immersive fullscreen (essential data only) ══════════ */}
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="tip" title="User data bootstraps on first boot">
           Scripts passed via user data run as root at launch — install packages, join clusters, pull config from S3.
           Combine with instance metadata (169.254.169.254) for zero-hardcoded-secret provisioning.

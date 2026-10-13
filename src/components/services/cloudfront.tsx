@@ -7,6 +7,8 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { StatChip } from "@/components/shared/typography";
 import { CloudFrontIcon, S3Icon, UserIcon } from "@/components/aws-icons";
 import { Timer, Trash2 } from "lucide-react";
@@ -132,6 +134,7 @@ function EdgeNode({
 }
 
 export default function CloudFrontVisualizer() {
+  const immersive = useImmersiveView();
   const [running, setRunning] = useState(false);
   const [ttl, setTtl] = useState(600);
 
@@ -295,16 +298,26 @@ export default function CloudFrontVisualizer() {
   const fmtTtl = (v: number) => (v >= 60 ? `${Math.round(v / 60)}m` : `${v}s`);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — flow view left, stats + controls + readout rail right */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // EDGE CACHE RACE"
           subtitle="3 USERS → 600+ POP EDGES → S3 ORIGIN — HIT VS MISS"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="CloudFront edge cache hit versus miss race">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="CloudFront edge cache hit versus miss race"
+          >
             {/* HEADER CHIP */}
             <div className="absolute left-3 top-2.5 z-[6] flex items-center gap-1.5 border border-aws/40 bg-black/70 backdrop-blur-sm px-2 py-1">
               <CloudFrontIcon className="w-3 h-3 text-aws" />
@@ -583,7 +596,7 @@ export default function CloudFrontVisualizer() {
       </GlassPanel>
 
       {/* KNOWLEDGE */}
-      <div className="grid md:grid-cols-3 gap-3">
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="tip" title="600+ edge PoPs serve content in ~10ms">
           CloudFront answers from 600+ Points of Presence spread across 90+ cities worldwide. Objects
           cached at the nearest PoP are served in single-digit-to-low-teens milliseconds — versus a

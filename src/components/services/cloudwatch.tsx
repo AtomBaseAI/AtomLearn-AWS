@@ -8,6 +8,8 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog } from "@/components/shared/auto-log";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import {
   CloudWatchIcon,
   CWAlarmIcon,
@@ -153,6 +155,7 @@ const LINK_ASG = "M56,42 C62,42 62,46 77,46";
 const LINK_EMAIL = "M56,44 C61,44 61,72 77,72";
 
 export default function CloudWatchVisualizer() {
+  const immersive = useImmersiveView();
   /* controls */
   const [running, setRunning] = useState(false);
   const [threshold, setThreshold] = useState(75);
@@ -390,17 +393,24 @@ export default function CloudWatchVisualizer() {
         : "border-foreground/25 text-muted-foreground bg-white/[0.04]";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — flow view left, live stats + controls rail right */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // METRICS PIPELINE"
           subtitle="LIVE CPUUTILIZATION CHART — ALARM EVALUATION — ACTION TARGETS"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
           <FlowCanvas
-            className="h-[440px] sm:h-[540px] lg:h-[560px]"
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
             ariaLabel="CloudWatch metrics alarm and actions flow diagram"
           >
             {/* SOURCE → CORE LINKS */}
@@ -750,7 +760,7 @@ export default function CloudWatchVisualizer() {
       </GlassPanel>
 
       {/* KNOWLEDGE */}
-      <div className="grid md:grid-cols-3 gap-3">
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="exam" title="Alarm states & evaluation">
           Every alarm lives in one of three states — OK, ALARM or INSUFFICIENT_DATA. Transitioning
           takes Period × Evaluation Periods of breaching datapoints (default 3 of 3 — this sim uses

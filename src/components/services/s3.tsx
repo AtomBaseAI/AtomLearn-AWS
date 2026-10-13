@@ -7,6 +7,8 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { S3Icon } from "@/components/aws-icons";
 import { CloudUpload, Layers, Package, Snowflake, Archive, Copy } from "lucide-react";
 
@@ -56,6 +58,7 @@ const TIER_Y: Record<Tier, number> = {
 };
 
 export default function S3Visualizer() {
+  const immersive = useImmersiveView();
   const [objects, setObjects] = useState<S3Obj[]>([]);
   const [replica, setReplica] = useState<S3Obj[]>([]);
   const [days, setDays] = useState(0);
@@ -193,16 +196,26 @@ export default function S3Visualizer() {
   const shown = objects.slice(-MAX_SHOW);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — animation left, rail right */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // OBJECT LIFECYCLE"
           subtitle="UPLOADS → TIERING → CROSS-REGION REPLICATION"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="S3 lifecycle and replication flow diagram">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="S3 lifecycle and replication flow diagram"
+          >
             {/* LINKS */}
             <FlowLink d="M14,11 C22,11 24,15 29,19" status={prodActive ? "flowing" : "idle"} dotDuration={1.2} />
             <FlowLink d="M50,21 C62,21 63,21 74,21" dashed status={replActive ? "flowing" : "idle"} dotDuration={1.4} />
@@ -501,8 +514,8 @@ export default function S3Visualizer() {
         </div>
       </div>
 
-      {/* KNOWLEDGE */}
-      <div className="grid md:grid-cols-3 gap-3">
+      {/* KNOWLEDGE — hidden in immersive fullscreen (essential data only) */}
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="info" title="11 nines of durability">
           S3 stores every object redundantly across <span className="text-aws">≥ 3 Availability Zones</span>, delivering
           99.999999999% (11 nines) durability — you would need to lose 10,000,000 objects for 10,000 years to expect a

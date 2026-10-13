@@ -7,6 +7,8 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { EC2Icon, ELBIcon, UserIcon } from "@/components/aws-icons";
 import { Lock, Route, Skull } from "lucide-react";
 
@@ -62,6 +64,7 @@ const BTN =
 /* ------------------------------------------------------------------ */
 
 export default function ELBVisualizer() {
+  const immersive = useImmersiveView();
   const [targets, setTargets] = useState<Target[]>(freshWeb);
   const [imgTargets, setImgTargets] = useState<Target[]>(freshImg);
   const [total, setTotal] = useState(0);
@@ -200,16 +203,26 @@ export default function ELBVisualizer() {
     t.state === "draining" ? "error" : t.state === "recovering" ? "success" : isActive ? "flowing" : "idle";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — ANIMATION LEFT / RAIL RIGHT */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // TRAFFIC SPLITTER"
           subtitle="USERS → ALB :443 → TARGET GROUPS — ROUND ROBIN"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="Elastic Load Balancing traffic flow diagram">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="Elastic Load Balancing traffic flow diagram"
+          >
             {/* TARGET GROUP BOUNDARIES */}
             <div className="absolute border border-dashed border-aws/35 bg-aws/[0.02]" style={{ left: "61%", top: "48%", width: "37%", height: "47%" }} aria-hidden="true" />
             {pathRules && (
@@ -500,8 +513,8 @@ export default function ELBVisualizer() {
         </div>
       </div>
 
-      {/* ══════════ KNOWLEDGE ══════════ */}
-      <div className="grid md:grid-cols-3 gap-3">
+      {/* ══════════ KNOWLEDGE — hidden in immersive fullscreen (essential data only) ══════════ */}
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="exam" title="ALB is Layer 7, NLB is Layer 4">
           ALB routes on HTTP semantics — path, host, headers. NLB forwards raw TCP/UDP with static IPs, ultra-low
           latency and support for millions of requests per second. Exam loves this split.

@@ -7,6 +7,8 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { SNSIcon, LambdaIcon, SQSIcon, EC2Icon } from "@/components/aws-icons";
 import { Skull, Layers, Timer } from "lucide-react";
 
@@ -19,6 +21,7 @@ interface Msg {
 const MAX_SHOW = 6;
 
 export default function SQSVisualizer() {
+  const immersive = useImmersiveView();
   const [queue, setQueue] = useState<Msg[]>([]);
   const [dlq, setDlq] = useState<Msg[]>([]);
   const [workers, setWorkers] = useState<(Msg | null)[]>([null, null]);
@@ -126,16 +129,26 @@ export default function SQSVisualizer() {
   const shown = queue.slice(0, MAX_SHOW);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — animation left, rail right */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // MESSAGE PIPELINE"
           subtitle="PRODUCERS → QUEUE → WORKERS — VISIBILITY TIMEOUT + DLQ REDRIVE"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="SQS message flow diagram">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="SQS message flow diagram"
+          >
             {/* LINKS */}
             <FlowLink d="M15,22 C32,22 32,34 44,34" status={prodActive ? "flowing" : "idle"} dotDuration={1.4} />
             <FlowLink d="M15,52 C32,52 32,38 44,38" status={prodActive ? "flowing" : "idle"} dotDuration={1.6} dotDelay={0.3} />
@@ -324,8 +337,8 @@ export default function SQSVisualizer() {
         </div>
       </div>
 
-      {/* KNOWLEDGE */}
-      <div className="grid md:grid-cols-3 gap-3">
+      {/* KNOWLEDGE — hidden in immersive fullscreen (essential data only) */}
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="tip" title="Visibility timeout is your safety net">
           When a consumer receives a message it becomes invisible for the timeout period (default 30s).
           If the worker crashes before deleting the message, the timeout expires and the message

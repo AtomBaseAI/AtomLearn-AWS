@@ -8,6 +8,8 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog } from "@/components/shared/auto-log";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import {
   CloudWatchIcon,
   EC2Icon,
@@ -190,6 +192,7 @@ function TaskChip({ t, orch, activeVer }: { t: Task; orch: Orch; activeVer: numb
 /* ------------------------------------------------------------------ */
 
 export default function Containers() {
+  const immersive = useImmersiveView();
   /* control states */
   const [running, setRunning] = useState(false);
   const [orch, setOrch] = useState<Orch>("ECS");
@@ -660,17 +663,24 @@ export default function Containers() {
         } UP`;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — flow view left, live stats + controls rail right */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // CONTAINER PIPELINE"
           subtitle="ECR → SCHEDULER → ALB → CLOUDWATCH TARGET TRACKING"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
           <FlowCanvas
-            className="h-[440px] sm:h-[540px] lg:h-[560px]"
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
             ariaLabel="ECS EKS ECR container orchestration flow diagram"
           >
             {/* HEADER CHIP */}
@@ -1182,7 +1192,7 @@ export default function Containers() {
       </GlassPanel>
 
       {/* KNOWLEDGE */}
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className={immersive.active ? "hidden" : "grid gap-3 md:grid-cols-3"}>
         <Callout type="exam" title="ECS vs EKS vs Fargate" delay={0.1}>
           Three ways to run containers, one decision matrix. ECS is the simplest — AWS-native, tight IAM
           and ALB integration, no control plane to run. EKS is upstream Kubernetes — maximum portability

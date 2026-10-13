@@ -7,6 +7,8 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { StatChip } from "@/components/shared/typography";
 import { SNSIcon, UserIcon, SQSIcon, LambdaIcon, EmailNotificationIcon, HttpNotificationIcon } from "@/components/aws-icons";
 import { Zap, Filter, Smartphone } from "lucide-react";
@@ -86,6 +88,7 @@ const BTN =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm";
 
 export default function SNSVisualizer() {
+  const immersive = useImmersiveView();
   const [running, setRunning] = useState(false);
   const [filterOn, setFilterOn] = useState(false);
 
@@ -223,16 +226,26 @@ export default function SNSVisualizer() {
   const fanOutRate = published > 0 ? `${(deliveries / published).toFixed(1)}×` : "0×";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — animation left, stats + controls rail right */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // TOPIC FAN-OUT"
           subtitle="1 PUBLISHER → SNS TOPIC → 5 SUBSCRIBERS"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="SNS topic fan-out to five subscribers">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="SNS topic fan-out to five subscribers"
+          >
             {/* LINKS */}
             <FlowLink
               key={`pub-${fanKey}`}
@@ -432,7 +445,7 @@ export default function SNSVisualizer() {
       </GlassPanel>
 
       {/* KNOWLEDGE */}
-      <div className="grid md:grid-cols-3 gap-3">
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="exam" title="SNS → SQS fan-out is THE classic pattern">
           One publish fans out to N SQS queues — each consumer gets its own durable copy at its own pace,
           with independent retries and DLQs. Standard topics: unlimited throughput, 12.5M+ subscriptions

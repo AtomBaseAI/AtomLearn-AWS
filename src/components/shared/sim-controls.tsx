@@ -53,7 +53,7 @@ export function SimControls({
           className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.18em] border bg-black/50 backdrop-blur-md cyber-cut-sm transition-colors disabled:opacity-40 ${accentCls} hover:bg-aws/10`}
           aria-label={running ? "Pause simulation" : "Run simulation"}
         >
-          {running ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+          {running ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 blink-icon" />}
           {running ? "PAUSE" : "RUN"}
         </motion.button>
         <motion.button

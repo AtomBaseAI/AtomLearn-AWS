@@ -8,6 +8,8 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog } from "@/components/shared/auto-log";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { EC2Icon, RDSIcon, RDSInstanceIcon, RDSProxyIcon } from "@/components/aws-icons";
 import { Layers, Gauge, Zap, ZapOff, Power } from "lucide-react";
 
@@ -276,6 +278,7 @@ function ReplicaBlock({ idx, x, y, lag, applied, stale, delay }: ReplicaBlockPro
 /* ------------------------------------------------------------------ */
 
 export default function RDSVisualizer() {
+  const immersive = useImmersiveView();
   /* control states (read by the tick via closure deps) */
   const [running, setRunning] = useState(false);
   const [multiAZ, setMultiAZ] = useState(true);
@@ -653,16 +656,26 @@ export default function RDSVisualizer() {
           : "ENGINE LIVE — SYNC REPLICATION FLOWING";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* FLOW VIEW + RIGHT RAIL */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // DATABASE ENGINE"
           subtitle="MULTI-AZ STANDBY + READ REPLICA — WRITES · READS · FAILOVER"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="RDS multi-AZ failover and read replica flow diagram">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="RDS multi-AZ failover and read replica flow diagram"
+          >
             {/* HEADER CHIP */}
             <div className="absolute left-3 top-2.5 z-[6] flex items-center gap-1.5 border border-aws/40 bg-black/70 px-2 py-1 backdrop-blur-sm">
               <RDSIcon className="w-3 h-3 text-aws" />
@@ -983,7 +996,7 @@ export default function RDSVisualizer() {
       </GlassPanel>
 
       {/* KNOWLEDGE */}
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className={immersive.active ? "hidden" : "grid gap-3 md:grid-cols-3"}>
         <Callout type="exam" title="Multi-AZ vs Read Replicas" delay={0.1}>
           Multi-AZ is about availability: a synchronous standby in another AZ, automatic failover in
           roughly 60-120 seconds — the DNS endpoint switches, apps never re-point. Read Replicas are

@@ -8,6 +8,8 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { APIGatewayIcon, LambdaIcon, S3Icon, SQSIcon, CloudWatchIcon } from "@/components/aws-icons";
 import { Flame, Gauge, Skull, Snowflake, Timer, Zap } from "lucide-react";
 
@@ -95,6 +97,7 @@ const BTN =
 /* ------------------------------------------------------------------ */
 
 export default function LambdaVisualizer() {
+  const immersive = useImmersiveView();
   const [execs, setExecs] = useState<Exec[]>([]);
   const [containers, setContainers] = useState<Container[]>([]);
   const [outputDots, setOutputDots] = useState<OutputDot[]>([]);
@@ -315,16 +318,26 @@ export default function LambdaVisualizer() {
   const phaseKey = throttleFlash ? "THROTTLED" : phase;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — flow view left, stats + controls rail right */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // INVOCATION PIPELINE"
           subtitle="4 EVENT SOURCES → λ EXECUTION → CLOUDWATCH / DLQ"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="Lambda event-driven invocation flow diagram">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="Lambda event-driven invocation flow diagram"
+          >
             {/* LINKS — EVENT SOURCES → LAMBDA */}
             {SOURCES.map((s) => (
               <FlowLink
@@ -579,7 +592,7 @@ export default function LambdaVisualizer() {
       </GlassPanel>
 
       {/* ══════════ KNOWLEDGE ══════════ */}
-      <div className="grid md:grid-cols-3 gap-3">
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="critical" title="15-minute hard execution cap">
           A Lambda function can never run longer than 900 seconds. Anything longer — ETL jobs, video encoding, huge
           batch runs — must be split with Step Functions or moved to containers on ECS/Fargate.

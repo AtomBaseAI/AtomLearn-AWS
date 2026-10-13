@@ -8,6 +8,8 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { IAMIcon, UserIcon, LambdaIcon, AccountIcon } from "@/components/aws-icons";
 import { KeyRound, Zap } from "lucide-react";
 
@@ -160,6 +162,7 @@ interface EvalRequest {
 const MAX_LOG = 60;
 
 export default function IAMVisualizer() {
+  const immersive = useImmersiveView();
   const [principal, setPrincipal] = useState<PrincipalId>("alice");
   const [mfa, setMfa] = useState(true);
   const [action, setAction] = useState<ActionId>("s3:GetObject");
@@ -297,16 +300,26 @@ export default function IAMVisualizer() {
   const reqActive = request !== null && step >= 1 && step <= 7;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — ANIMATION LEFT / RAIL RIGHT */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // POLICY EVALUATION"
           subtitle="PRINCIPAL → POLICY ENGINE → ALLOW / DENY VERDICT"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="IAM policy evaluation flow diagram">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="IAM policy evaluation flow diagram"
+          >
             {/* LINKS — principals into the engine */}
             <FlowLink d="M17,17 C27,17 28,42 37,46" status={reqActive && request?.principal === "root" ? "cyber" : "idle"} dotDuration={1.3} />
             <FlowLink d="M17,50 C25,50 27,50 37,50" status={reqActive && request?.principal === "alice" ? "cyber" : "idle"} dotDuration={1.1} />
@@ -528,8 +541,8 @@ export default function IAMVisualizer() {
         </div>
       </GlassPanel>
 
-      {/* KNOWLEDGE */}
-      <div className="grid md:grid-cols-3 gap-3">
+      {/* KNOWLEDGE — hidden in immersive fullscreen (essential data only) */}
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="exam" title="Evaluation order decides everything">
           Within a single account, IAM evaluates: {"START → explicit Deny → explicit Allow → default Deny."} An explicit
           deny in ANY policy (identity, permission boundary, SCP) always overrides every allow. If no allow matches, the

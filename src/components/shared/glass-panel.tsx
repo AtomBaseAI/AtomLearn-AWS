@@ -52,7 +52,7 @@ export function GlassPanel({
               </p>
             )}
           </div>
-          {actions && <div className="min-w-0 max-w-full flex items-center gap-2">{actions}</div>}
+          {actions && <div className="min-w-0 max-w-full flex items-center gap-2 self-center">{actions}</div>}
         </header>
       )}
       {children}

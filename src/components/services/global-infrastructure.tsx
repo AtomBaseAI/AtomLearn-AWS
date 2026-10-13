@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { GlassPanel } from "@/components/shared/glass-panel";
 import { Callout } from "@/components/shared/callout";
 import { StatChip } from "@/components/shared/typography";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
 import { RegionsUseCase, AzUseCase } from "./infra-usecases";
 import { Globe2, RotateCw, Waves, MapPin, ChevronRight, Activity, Wifi, Server, ShieldAlert, Network, Building2 } from "lucide-react";
@@ -911,6 +913,7 @@ const MODULE_TABS = [
 type ModuleTabId = (typeof MODULE_TABS)[number]["id"];
 
 export default function GlobalInfrastructure() {
+  const immersive = useImmersiveView();
   const [selected, setSelected] = useState<Region>(REGIONS[0]);
   const [autoRotate, setAutoRotate] = useState(true);
   const [showArcs, setShowArcs] = useState(true);
@@ -999,7 +1002,13 @@ export default function GlobalInfrastructure() {
   }, [selected, latency]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MODULE TABS — sits directly below the module title card */}
       <div role="tablist" aria-label="Global infrastructure views" className="flex flex-wrap gap-1.5">
         {MODULE_TABS.map((t) => {
@@ -1062,10 +1071,15 @@ export default function GlobalInfrastructure() {
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_320px] gap-4">
+      <div className={`grid lg:grid-cols-[1fr_320px] gap-4 ${immersive.active ? "flex-1" : ""}`}>
         {/* 3D GLOBE */}
-        <GlassPanel title="ORBITAL VIEW // DOTTED WORLD MAP" subtitle="DRAG TO ROTATE — SCROLL TO ZOOM — CLICK A NODE" className="!p-0 overflow-hidden">
-          <div className="relative h-[440px] sm:h-[560px] lg:h-[640px] scanlines">
+        <GlassPanel
+          title="ORBITAL VIEW // DOTTED WORLD MAP"
+          subtitle="DRAG TO ROTATE — SCROLL TO ZOOM — CLICK A NODE"
+          className="!p-0 overflow-hidden"
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
+        >
+          <div className={immersive.active ? "relative h-[min(640px,58vh)] scanlines" : "relative h-[440px] sm:h-[560px] lg:h-[640px] scanlines"}>
             <Canvas
               camera={{ position: [0, 0.7, 7.4], fov: 40 }}
               dpr={[1, 2]}
@@ -1322,8 +1336,8 @@ export default function GlobalInfrastructure() {
         </div>
       </div>
 
-      {/* KNOWLEDGE GRID */}
-      <div className="grid md:grid-cols-3 gap-3">
+      {/* KNOWLEDGE GRID — hidden in immersive fullscreen (essential data only) */}
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="info" title="Region = geographic cluster">
           A Region is a physical location with multiple, isolated Availability Zones. Data is not
           replicated across Regions unless you configure it — choose Regions for latency, cost and

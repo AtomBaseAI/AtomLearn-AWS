@@ -7,6 +7,8 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { StatChip } from "@/components/shared/typography";
 import { APIGatewayIcon, LambdaIcon, S3Icon, ServerIcon, UserIcon } from "@/components/aws-icons";
 import { Zap, Gauge, Database, Timer } from "lucide-react";
@@ -46,6 +48,7 @@ const BTN =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm";
 
 export default function APIGatewayVisualizer() {
+  const immersive = useImmersiveView();
   // control states (mirrored into refs so the sim loop stays stable)
   const [running, setRunning] = useState(false);
   const [stage, setStage] = useState<"dev" | "prod">("dev");
@@ -279,16 +282,26 @@ export default function APIGatewayVisualizer() {
   const linkFlow = reqActive || burst;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — flow view left, stats + controls rail right */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // REQUEST PIPELINE"
           subtitle="CLIENT → 5 STAGES → 3 BACKENDS — THROTTLING + CACHING"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="API Gateway request lifecycle pipeline">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="API Gateway request lifecycle pipeline"
+          >
             {/* LINKS */}
             <FlowLink d="M13,50 C20,50 22,50 29,50" status={linkFlow ? "flowing" : "idle"} dotDuration={0.8} />
             <FlowLink
@@ -569,7 +582,7 @@ export default function APIGatewayVisualizer() {
       </GlassPanel>
 
       {/* KNOWLEDGE */}
-      <div className="grid md:grid-cols-3 gap-3">
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="exam" title="REST vs HTTP vs WebSocket API">
           REST API: full feature set (API keys, usage plans, request validation, mapping templates,
           caching, WAF) at higher cost. HTTP API: up to ~70% cheaper and lower latency, with JWT/OAuth2/IAM

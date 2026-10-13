@@ -577,3 +577,116 @@ Stage Summary:
 - New uniform layout in all 13 services: [animation | rail: LIVE STATS → CONTROLS → data panels] + full-width 4-line auto-scrolling timestamped log card below the animation
 - GLOBAL INFRASTRUCTURE untouched; shared AutoLog reused by 10 services; s3/elb/sqs keep data panels (no native text logs)
 - Screenshots: /home/z/shots/r17-iam.png, r17-iam-log.png, r17-ec2-top.png, r17-ec2-log2.png, r17-containers-log.png, r17-mobile-s3.png
+---
+Task ID: 18-d
+Agent: general-purpose
+Task: Add immersive fullscreen mode to global-infrastructure (tabs visible in fullscreen)
+
+Work Log:
+- Read worklog + reference pattern (iam.tsx immersive return block, use-immersive.ts hook, fullscreen-toggle.tsx, glass-panel actions slot) and mapped global-infrastructure's actual DOM: root div → tablist (GENERAL / REGIONS BEST USE CASE / AVAILABILITY ZONE USE CASE tabs) → GENERAL fragment (2 stat-chip/telemetry grids, main grid [globe | sidebar: REGION UPLINK + ALL REGIONS], KNOWLEDGE GRID of 3 Callouts) → RegionsUseCase/AzUseCase tab content.
+- Added only imports (FullscreenToggle, useImmersiveView) + `const immersive = useImmersiveView();` as first line of the component; zero state/refs/effects/Three.js/logic changes.
+- Root div: conditional className — immersive ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll" : original "flex flex-col gap-4".
+- ORBITAL VIEW // DOTTED WORLD MAP GlassPanel: new actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />} (right end of title row, vertically centered); globe container height conditional "relative h-[min(640px,58vh)] scanlines" (largest existing px = lg:h-[640px], no spaces in arbitrary value) vs original "relative h-[440px] sm:h-[560px] lg:h-[640px] scanlines" — className-only change, R3F <Canvas> is NOT remounted.
+- Main grid kept as sidebar layout `grid lg:grid-cols-[1fr_320px] gap-4` with `${immersive.active ? "flex-1" : ""}` appended via template literal (iam.tsx pattern).
+- ESSENTIAL kept visible in immersive: the module tablist (tabs usable in fullscreen per spec — RegionsUseCase/AzUseCase render as tab content), GENERAL stat grids + live telemetry chips (data, not prose), globe card incl. its HUD overlays (AUTO-ROTATE / INTER-REGION NET / UNDERSEA CABLES toggles, PKTS/SEC, TRACE, AZ DETAIL, legend — these live inside the globe card as absolute overlays so they come along), REGION UPLINK panel, ALL REGIONS panel (continent badges + region list).
+- NON-ESSENTIAL hidden via className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}: the KNOWLEDGE GRID (3 Callouts). No module description paragraphs exist inside this component (title/description card is rendered by page.tsx outside it).
+- Verification: bunx tsc --noEmit | rg "services/global-infrastructure" → empty; bun run lint → exit 0, no errors; git diff = 20 insertions / 6 deletions, only this file modified; no dev server / build / browser used per rules.
+
+Stage Summary:
+- GLOBAL INFRASTRUCTURE has immersive fullscreen matching the iam.tsx pattern: fixed-inset root, FullscreenToggle in the globe card header, globe at h-[min(640px,58vh)] without canvas remount, sidebar grid flex-1, tabs + globe HUD toggles + REGION UPLINK + ALL REGIONS stay available, knowledge callouts hidden in immersive.
+---
+Task ID: 18-c
+Agent: general-purpose
+Task: Add immersive fullscreen mode to rds/cloudwatch/containers/vpc
+
+Work Log:
+- Read worklog (17-c/17-d/17-main entries) + reference pattern (iam.tsx return block, use-immersive.ts, fullscreen-toggle.tsx) before touching anything; inspected all 4 return blocks in full.
+- Applied the iam.tsx immersive pattern verbatim to each of the 4 files (zero logic changes — only 2 imports, 1 hook line, JSX classNames + actions prop):
+  - imports: `FullscreenToggle` + `useImmersiveView` added right after the AutoLog import in each file.
+  - `const immersive = useImmersiveView();` as the first line inside each default-exported component (RDSVisualizer / CloudWatchVisualizer / Containers / VPCVisualizer).
+  - Root div: `immersive.active ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll" : "<original classes verbatim>"` (normal mode kept each file's original `flex flex-col gap-4`).
+  - Main animation grid (rds/cw/vpc 320px rail, containers 300px rail per 17-x deviation) converted to template literal with appended `${immersive.active ? "flex-1" : ""}`.
+  - Stage GlassPanel (FLOW VIEW // DATABASE ENGINE / METRICS PIPELINE / CONTAINER PIPELINE / PACKET TRACER TOPOLOGY) got `actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}` after delay={0.05}.
+  - FlowCanvas height conditional: immersive `"h-[min(560px,58vh)]"` (no spaces in arbitrary value), normal original `h-[440px] sm:h-[540px] lg:h-[560px]` verbatim (rds/vpc single-line FlowCanvas reflowed to multi-line for the conditional).
+  - KNOWLEDGE callout grid hidden in immersive: `className={immersive.active ? "hidden" : "<original classes>"}` — original class order preserved per file (`grid gap-3 md:grid-cols-3` rds/containers, `grid md:grid-cols-3 gap-3` cloudwatch/vpc).
+- Structure audit: all 4 files are single-stage (one FLOW VIEW grid + full-width AutoLog panel + KNOWLEDGE); rail content (LIVE STATS + CONTROLS) and full-width log panels (ENGINE LOG / ALARM HISTORY / ORCHESTRATOR LOG / PACKET TRACE) intentionally stay visible in immersive; no second animation-like grids exist in any of the 4, so `flex-1` only on the single main grid; no task/node detail panels outside the rail in containers (capacity/task readouts live inside FlowCanvas, untouched).
+- Untouched: all state/refs/effects/timers/handlers, FlowCanvas children, SimControls wiring, AutoLog props, Callout content, exported names.
+
+Stage Summary:
+- rds/cloudwatch/containers/vpc now support immersive fullscreen exactly like iam: fixed z-[70] overlay keeps animation grid (flex-1, h-[min(560px,58vh)] canvas), rail (LIVE STATS+CONTROLS) and full-width log panel; knowledge callouts hidden; FullscreenToggle button in the FLOW VIEW title row toggles browser fullscreen with graceful overlay-only fallback + ESC teardown via the shared hook.
+- Verification: `bunx tsc --noEmit | rg "services/(rds|cloudwatch|containers|vpc)"` → empty; `bun run lint` → exit 0, no errors/warnings; diff scoped to the 4 assigned files (~18-21 changed lines each, imports + hook line + JSX class/props only).
+- No deviations from the iam.tsx pattern.
+---
+Task ID: 18-a
+Agent: general-purpose
+Task: Add immersive fullscreen mode to ec2/s3/elb/sqs
+
+Work Log:
+- Read worklog tail (17-d layout of these files), reference iam.tsx return block, src/hooks/use-immersive.ts and src/components/shared/fullscreen-toggle.tsx (both untouched), confirmed GlassPanel actions slot renders the toggle at the right end of the title row.
+- All 4 files (ec2/s3/elb/sqs.tsx): added imports FullscreenToggle + useImmersiveView (after shared imports, before aws-icons, mirroring iam.tsx order); first line inside the default export `const immersive = useImmersiveView();`; root div className → conditional (immersive: "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll" / normal: original "flex flex-col gap-4" verbatim); main animation grid className converted to template literal with `${immersive.active ? "flex-1" : ""}` appended; stage GlassPanel got actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}; FlowCanvas className conditional (immersive → largest-px rule, see deviations); KNOWLEDGE callout grid → className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}.
+- ec2.tsx specifics: actions prop added to BOTH "LIFECYCLE STATE MACHINE" (Panel A) and "AUTO SCALING GROUP SIM" (Panel B) headers; flex-1 appended ONLY to Panel A's inner grid (Panel B grid left plain); full-width "STATE LOG // LIVE" AutoLog panel + both grids/rails stay visible in immersive; only the KNOWLEDGE section hidden.
+- s3/elb/sqs specifics: single FLOW VIEW stage each; right rail (LIVE STATS → CONTROLS → data panels: STORAGE CLASS PRICING + RECENT OBJECTS / TARGET HEALTH / DLQ CONTENTS) stays visible; only KNOWLEDGE hidden (no bottom log panels in these three per 17-d).
+- ZERO logic changes: no state/refs/effects/timers/handlers/aria/motion props touched — per file only 2 imports, 1 hook line, JSX classNames and the actions prop.
+- Verification: `bunx tsc --noEmit 2>&1 | rg "services/(ec2|s3|elb|sqs)"` → empty; full tsc (excl. skills/examples framework folders) → clean; `bun run lint` → exit 0, no errors/warnings; git diff scope = only the 4 assigned files (+73/-20 total).
+
+Stage Summary:
+- ec2/s3/elb/sqs now support immersive fullscreen: toggle button in the animation panel title row(s); active → fixed z-[70] overlay keeping only animation grid(s) + STATE LOG (ec2) + rails (LIVE STATS/CONTROLS/data panels), knowledge hidden, FlowCanvas height capped at h-[min(540px|560px,58vh)]; normal-mode classes byte-identical to before. Deviation: ec2 immersive height is h-[min(540px,58vh)] (largest px of its own responsive classes, no lg:560 tier); s3/elb/sqs use h-[min(560px,58vh)] exactly as in iam.tsx.
+---
+Task ID: 18-b
+Agent: general-purpose
+Task: Add immersive fullscreen mode to api-gateway/sns/cloudfront/lambda
+
+Work Log:
+- Read worklog tail (17-a/17-b/17-main), reference iam.tsx, hook use-immersive.ts and shared/fullscreen-toggle.tsx (hook/button untouched per rules).
+- Mirrored the iam.tsx pattern exactly into api-gateway.tsx, sns.tsx, cloudfront.tsx, lambda.tsx — identical 6-part minimal edit per file:
+  1. Imports: added FullscreenToggle + useImmersiveView directly after the shared/auto-log import line.
+  2. First line inside each default-exported component: const immersive = useImmersiveView();
+  3. Root div className → conditional: immersive.active ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll" : original "flex flex-col gap-4" kept verbatim.
+  4. Main animation grid converted to template literal with appended ${immersive.active ? "flex-1" : ""} (grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start otherwise byte-unchanged).
+  5. FLOW VIEW stage GlassPanel got actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}; FlowCanvas className now conditional: immersive "h-[min(560px,58vh)]" (no spaces) vs original "h-[440px] sm:h-[540px] lg:h-[560px]" verbatim (titles: REQUEST PIPELINE / TOPIC FAN-OUT / EDGE CACHE RACE / INVOCATION PIPELINE).
+  6. KNOWLEDGE callout grid — the only non-essential root child in each file — → className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}.
+- Kept visible in immersive for all 4: the flex-1 animation grid (flow view + rail LIVE STATS → CONTROLS → cloudfront's LATENCY READOUT) and the full-width log panel (REQUEST INSPECTOR / DELIVERY STREAM / EDGE LOG / EXECUTION LOG).
+- Zero logic changes: no state/refs/effects/timers/handlers/aria touched — only imports, the one hook line, JSX classNames and the single actions prop per file.
+- Tooling note: diff/rg transcript displays strip ANSI-reset-like bracket sequences, which made inserted classes LOOK mangled (e.g. "inmax"); byte-level python verification proved all inserted strings intact on disk (grid template, canvas conditional, root classes, actions, knowledge conditional = exactly 1 occurrence per file; 0 corrupted variants) — display artifact only, no file damage.
+
+Stage Summary:
+- api-gateway/sns/cloudfront/lambda now support immersive fullscreen exactly like iam.tsx: fixed inset-0 z-[70] stage, flex-1 animation grid, h-[min(560px,58vh)] FlowCanvas, FullscreenToggle in the FLOW VIEW header actions slot, knowledge callouts hidden, full-width log panel retained; normal mode renders the original classes verbatim.
+- Verification: bunx tsc --noEmit filtered to services/(api-gateway|sns|cloudfront|lambda) → empty output; bun run lint → exit 0, no errors/warnings. Only the 4 assigned files modified.
+
+---
+Task ID: 18-main
+Agent: main
+Task: Fullscreen/exit-fullscreen button in every service animation-card title row + immersive 100vw/100vh modal showing only essential data (animation + LIVE STATS + CONTROLS + bottom logs); GLOBAL INFRASTRUCTURE toggle also on the tab row with tabs visible in fullscreen
+
+Work Log:
+- Created src/hooks/use-immersive.ts: useImmersiveView() — active state, toggle() requests document.documentElement fullscreen (catch → overlay-only fallback for iframes/unsupported), fullscreenchange sync (ESC/browser UI), body.immersive-on flag (scroll lock + CSS hooks), ESC closes overlay-only mode, unmount teardown (exit fullscreen + remove body class)
+- Created src/components/shared/fullscreen-toggle.tsx: Maximize/Minimize icon button (cyber-cut-sm, aws active state, aria-pressed/aria-label/title)
+- GlassPanel: actions wrapper now self-center → button vertically centered at the right end of the title row (e.g. right side of "FLOW VIEW // POLICY EVALUATION" in IAM)
+- globals.css: body.immersive-on neutralizes ancestor containing blocks ([data-stage-filter] filter:none, [data-stage-glass] backdrop-filter:none) + body scroll lock; page.tsx module wrapper/container tagged data-stage-filter/data-stage-glass
+- iam.tsx reference implementation, then 4 parallel agents: 18-a ec2/s3/elb/sqs, 18-b api-gateway/sns/cloudfront/lambda, 18-c rds/cloudwatch/containers/vpc, 18-d global-infrastructure — pattern: root div switches to fixed inset-0 z-[70] bg-background overlay (no remount, animation state preserved), main grid flex-1, stage GlassPanel gets actions={<FullscreenToggle/>}, canvas h-[min(560px,58vh)] (GI: 640px), knowledge/description sections hidden; log panels + rails stay
+- global-infrastructure extra: FullscreenToggle appended to the MODULE TABS row (ml-auto) so it's reachable from the tabs themselves on every tab (globe header button only exists on GENERAL)
+- Verification: bunx tsc --noEmit filtered → 0 project errors; bun run lint exit 0; Agent Browser E2E — GI fullscreen (fs:true, tabs + globe + ALL REGIONS + toggle in tab row, REGIONS tab usable in fullscreen), IAM fullscreen (RUN inside fullscreen → 26 timestamped log entries, AutoLog pinned=true, state preserved across exit, knowledge display:none), EC2 both-panel toggles + Escape exit, CONTAINERS (LIVE STATS/CONTROLS/ORCHESTRATOR LOG all visible), RDS overlay-only fallback (eval click → untrusted gesture → requestFullscreen rejected → modal still renders, ESC closes), mobile 390px (docW=390, overlay scrolls, no h-overflow), 14-module sweep toggle counts (GI:2, EC2:2, rest:1), 0 page errors
+- Screenshots: /home/z/shots/fs-02-gi-full.png, fs-03-gi-regions-tab.png, fs-04-iam-full.png, fs-05-iam-normal.png, fs-06-ec2-full.png, fs-07-containers-full.png, fs-08/09/10-mobile-*.png, fs-11-rds-full.png
+
+Stage Summary:
+- Every one of the 14 modules has a fullscreen toggle in its animation-card title row (right end, vertically centered); GLOBAL INFRASTRUCTURE additionally has it in the tab row
+- Fullscreen = browser Fullscreen API + fixed 100vw/100vh modal showing ONLY: animation card, right rail (LIVE STATS → CONTROLS), full-width bottom log(s); GI also keeps the three tabs. Non-essential panels hidden, zero DOM remounting so all sim/Three.js state persists
+- Graceful degradation: if the Fullscreen API is unavailable (preview iframe), the identical immersive modal still works overlay-only; ESC exits both paths
+
+---
+Task ID: 19-main
+Agent: main
+Task: Batch UI changes — GI single fullscreen button, icon+text fullscreen buttons, blinking RUN play icon, round reset button, official AWS doc links in title cards, boot-overlay replacement
+
+Work Log:
+- global-infrastructure.tsx: removed the tab-row FullscreenToggle (reverted tablist classes) → only the ORBITAL VIEW globe-card button remains
+- fullscreen-toggle.tsx: now icon + text label — "FULLSCREEN" (Maximize) / "EXIT FULLSCREEN" (Minimize), aws-highlighted active state, same aria-labels (fullscreen behavior untouched)
+- sim-controls.tsx: idle play icon gets blink-icon class → hard blink (icon-blink keyframes, 0.9s) in AWS orange rgb(255,153,0); switches to static Pause while running
+- globals.css: found the root cause of the square reset — `* { border-radius: 0 !important }` inside @layer base beats unlayered !important (cascade-layers reversal); added `button[aria-label="Reset simulation"] { border-radius: 9999px !important }` INSIDE @layer base after the kill rule → reset renders as a perfect circle; added @keyframes icon-blink + .blink-icon (unlayered)
+- services-data.ts: new ServiceDoc interface {title (full official name, aria), label (bracket text), url}; docs added to all 14 services incl. 3 entries for containers (ECS/ECR/EKS)
+- page.tsx: stats grid + docs row wrapped in flex-col items-end — book-icon (BookOpen) doc links rendered below the data cards in every title card, target=_blank rel=noopener, title attr = bracket text, uppercase cyber styling
+- boot-overlay.tsx: replaced verbatim with user-provided code (ATOM//NEXUS, ATOM OSS - VISUAL CLOUD CONSOLE, ap-south-1 uplink, ">> WELCOME, BUILDER")
+- Verification: tsc 0 project errors, lint exit 0; Agent Browser — boot overlay shows ATOM//NEXUS + ap-south-1 line; GI has exactly 1 toggle; IAM: btnText "FULLSCREEN" → "EXIT FULLSCREEN" when immersive, reset borderRadius 9999px (round in idle AND running), idle play icon has blink-icon + computed orange, RUN → PAUSE with blink gone; docs sweep across all 14 modules shows correct link per module + all 3 container links; dev.log clean
+
+Stage Summary:
+- All six requested changes live: single GI toggle, labeled fullscreen buttons, orange-blinking RUN play icons when idle, round reset buttons (cascade-layer fix), official AWS doc links with book icons under every title card's data cards (16 links mapped, containers×3), boot overlay = user's exact code

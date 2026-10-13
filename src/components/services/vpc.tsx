@@ -8,6 +8,8 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
+import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { useImmersiveView } from "@/hooks/use-immersive";
 import { VPCIcon, InternetIcon, ELBIcon, EC2Icon, RDSIcon, InternetGatewayIcon, NatGatewayIcon, AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
 import { ShieldCheck, ShieldAlert, Power, Terminal } from "lucide-react";
 
@@ -65,6 +67,7 @@ function SubnetBox({ left, top, width, height, label, rt, danger, tile }: Subnet
 }
 
 export default function VPCVisualizer() {
+  const immersive = useImmersiveView();
   const [view, setView] = useState<ViewMode>("sg");
   const [natOn, setNatOn] = useState(true);
   const [running, setRunning] = useState(false);
@@ -172,16 +175,26 @@ export default function VPCVisualizer() {
   const pathLive = step >= 1 && step <= 5;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        immersive.active
+          ? "fixed inset-0 z-[70] bg-background p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 overflow-y-auto cyber-scroll"
+          : "flex flex-col gap-4"
+      }
+    >
       {/* MAIN GRID — ANIMATION LEFT / RAIL RIGHT */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
           title="FLOW VIEW // PACKET TRACER TOPOLOGY"
           subtitle="INTERNET → IGW → NACL → SG → NAT — STATEFUL VS STATELESS"
           className="!p-0 overflow-hidden"
           delay={0.05}
+          actions={<FullscreenToggle active={immersive.active} onToggle={immersive.toggle} />}
         >
-          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="VPC packet trace network diagram">
+          <FlowCanvas
+            className={immersive.active ? "h-[min(560px,58vh)]" : "h-[440px] sm:h-[540px] lg:h-[560px]"}
+            ariaLabel="VPC packet trace network diagram"
+          >
             {/* SUBNET BOUNDARIES (no fill — SVG links stay visible beneath) */}
             <SubnetBox left="3%" top="36%" width="43%" height="23%" label={"PUBLIC-SUBNET-A // 10.0.1.0/24"} rt="RT: PUBLIC-RT" tile={AWS_EXTRA_ICONS.publicSubnet} danger={view === "nacl"} />
             <SubnetBox left="3%" top="62%" width="43%" height="32%" label={"PRIVATE-SUBNET-A // 10.0.2.0/24"} rt="RT: PRIVATE-RT-A" tile={AWS_EXTRA_ICONS.privateSubnet} danger={blocked} />
@@ -441,7 +454,7 @@ export default function VPCVisualizer() {
       </GlassPanel>
 
       {/* KNOWLEDGE */}
-      <div className="grid md:grid-cols-3 gap-3">
+      <div className={immersive.active ? "hidden" : "grid md:grid-cols-3 gap-3"}>
         <Callout type="exam" title="Security Groups vs NACLs">
           <span className="text-aws">SGs are STATEFUL</span> — allowed inbound traffic returns automatically; ALL rules are
           evaluated before a decision. <span className="text-danger">NACLs are STATELESS</span> — return traffic needs an
