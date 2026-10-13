@@ -7,12 +7,12 @@ import { SERVICES } from "@/lib/services-data";
 
 const BOOT_LINES = [
   "> INITIALIZING NEXUS KERNEL v2.0.77",
-  "> ESTABLISHING UPLINK :: us-east-1",
+  "> ESTABLISHING UPLINK :: ap-south-1",
   "> HANDSHAKE OK — TLS 1.3 / 12ms",
   `> MOUNTING ${SERVICES.length} SERVICE MODULES`,
   "> COMPILING NEURAL FLOW GRAPHS",
   "> SPINNING UP WEBGL RENDERER",
-  "> ACCESS GRANTED — WELCOME, BUILDER",
+  ">> WELCOME, BUILDER",
 ];
 
 export function BootOverlay({ onDone }: { onDone: () => void }) {
@@ -69,7 +69,7 @@ export function BootOverlay({ onDone }: { onDone: () => void }) {
           ATOM//NEXUS
         </motion.h1>
         <p className="mt-2 text-[9px] tracking-[0.4em] text-muted-foreground uppercase">
-          ATOM OSS - VISUAL CLOUD CONSOLE — BOOT SEQUENCE
+          ATOM OSS - VISUAL CLOUD CONSOLE
         </p>
 
         {/* official AWS service tiles mounting in sequence */}
