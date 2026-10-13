@@ -201,24 +201,15 @@ export default function ELBVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      <GlassPanel
-        title="TRAFFIC SPLITTER // LIVE"
-        subtitle={
-          pathRules
-            ? "LISTENER :443 — PATH RULES ENGAGED · /api/* → TG-WEB · /img/* → TG-IMG"
-            : "LISTENER :443 — DEFAULT FORWARD · ALL REQUESTS → TG-WEB-PROD"
-        }
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={running ? "ALB LIVE — ROUND ROBIN DISPATCHING" : "ALB IDLE — PRESS RUN"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="Elastic Load Balancing traffic flow diagram">
+      {/* MAIN GRID — ANIMATION LEFT / RAIL RIGHT */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // TRAFFIC SPLITTER"
+          subtitle="USERS → ALB :443 → TARGET GROUPS — ROUND ROBIN"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="Elastic Load Balancing traffic flow diagram">
             {/* TARGET GROUP BOUNDARIES */}
             <div className="absolute border border-dashed border-aws/35 bg-aws/[0.02]" style={{ left: "61%", top: "48%", width: "37%", height: "47%" }} aria-hidden="true" />
             {pathRules && (
@@ -416,44 +407,98 @@ export default function ELBVisualizer() {
               </React.Fragment>
             ))}
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="REQUESTS SENT" value={String(total)} />
-            <StatChip label="HEALTHY TARGETS" value={`${healthyCount}/4`} tone={healthyCount < 4 ? "magenta" : "mint"} delay={0.05} />
-            <StatChip label="ALGORITHM" value="ROUND ROBIN" tone="neutral" delay={0.1} />
-            <StatChip label="ACTIVE CONNECTIONS" value={String(conns)} tone="magenta" delay={0.15} />
-          </div>
+        {/* RIGHT RAIL — LIVE STATS + TARGET HEALTH */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="REQUESTS SENT" value={String(total)} />
+              <StatChip label="HEALTHY TARGETS" value={`${healthyCount}/4`} tone={healthyCount < 4 ? "magenta" : "mint"} delay={0.05} />
+              <StatChip label="ALGORITHM" value="ROUND ROBIN" tone="neutral" delay={0.1} />
+              <StatChip label="ACTIVE CONNECTIONS" value={String(conns)} tone="magenta" delay={0.15} />
+            </div>
+          </GlassPanel>
 
-          {/* INTERACTIVE CONTROLS */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={togglePathRules}
-              aria-label="Toggle path-based listener rules"
-              className={`flex items-center gap-1.5 ${BTN} ${pathRules ? "border-magenta/60 text-magenta shadow-[0_0_14px_rgba(255,45,120,0.25)]" : "border-aws/50 text-aws"}`}
-            >
-              <Route className="w-3 h-3" />
-              {pathRules ? "PATH RULES: ON" : "PATH RULES: OFF"}
-            </button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={killTarget}
-              disabled={healthyCount === 0}
-              className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
-              aria-label="Kill a random healthy target to trigger health-check failover"
-            >
-              <Skull className="w-3 h-3" />
-              KILL TARGET
-            </motion.button>
-            <span className="text-[8px] tracking-wider text-muted-foreground uppercase">
-              health check: GET /health every 10s — 2 strikes = unhealthy
-            </span>
-          </div>
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={running ? "ALB LIVE — ROUND ROBIN DISPATCHING" : "ALB IDLE — PRESS RUN"}
+              />
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">LISTENER &amp; TARGETS</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={togglePathRules}
+                  aria-label="Toggle path-based listener rules"
+                  className={`flex items-center gap-1.5 ${BTN} ${pathRules ? "border-magenta/60 text-magenta shadow-[0_0_14px_rgba(255,45,120,0.25)]" : "border-aws/50 text-aws"}`}
+                >
+                  <Route className="w-3 h-3" />
+                  {pathRules ? "PATH RULES: ON" : "PATH RULES: OFF"}
+                </button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={killTarget}
+                  disabled={healthyCount === 0}
+                  className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
+                  aria-label="Kill a random healthy target to trigger health-check failover"
+                >
+                  <Skull className="w-3 h-3" />
+                  KILL TARGET
+                </motion.button>
+              </div>
+              <span className="text-[8px] tracking-wider text-muted-foreground uppercase">
+                health check: GET /health every 10s — 2 strikes = unhealthy
+              </span>
+            </div>
+          </GlassPanel>
+
+          <GlassPanel title="TARGET HEALTH" className="!p-0" delay={0.15}>
+            <div className="p-3">
+              <div className="glass-inset p-2.5 max-h-40 overflow-y-auto cyber-scroll flex flex-col gap-1">
+                {targets.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between gap-2">
+                    <span className="text-[8px] font-bold tracking-wider text-foreground/85">{t.id}</span>
+                    <span
+                      className={`text-[7px] font-extrabold uppercase tracking-[0.15em] px-1.5 py-0.5 border ${
+                        t.state === "healthy"
+                          ? "border-mint/50 text-mint"
+                          : t.state === "draining"
+                            ? "border-danger/60 text-danger"
+                            : "border-neon/60 text-neon"
+                      }`}
+                    >
+                      {t.state === "healthy" ? "HEALTHY" : t.state === "draining" ? "UNHEALTHY" : "RECOVERING"}
+                    </span>
+                  </div>
+                ))}
+                {pathRules &&
+                  imgTargets.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between gap-2">
+                      <span className="text-[8px] font-bold tracking-wider text-foreground/85">{t.id}</span>
+                      <span
+                        className={`text-[7px] font-extrabold uppercase tracking-[0.15em] px-1.5 py-0.5 border ${
+                          t.state === "healthy"
+                            ? "border-mint/50 text-mint"
+                            : t.state === "draining"
+                              ? "border-danger/60 text-danger"
+                              : "border-neon/60 text-neon"
+                        }`}
+                      >
+                        {t.state === "healthy" ? "HEALTHY" : t.state === "draining" ? "UNHEALTHY" : "RECOVERING"}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </GlassPanel>
         </div>
-      </GlassPanel>
+      </div>
 
       {/* ══════════ KNOWLEDGE ══════════ */}
       <div className="grid md:grid-cols-3 gap-3">

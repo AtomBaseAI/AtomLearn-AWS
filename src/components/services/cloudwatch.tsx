@@ -7,6 +7,7 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
+import { AutoLog } from "@/components/shared/auto-log";
 import {
   CloudWatchIcon,
   CWAlarmIcon,
@@ -189,7 +190,6 @@ export default function CloudWatchVisualizer() {
   const errBurstRef = useRef(0);
   const tickRef = useRef(0);
   const histRef = useRef<LogLine[]>([BOOT_LINE]);
-  const histBoxRef = useRef<HTMLDivElement | null>(null);
 
   const pushLog = useCallback((text: string, tone: LogTone = "aws") => {
     logIdRef.current += 1;
@@ -296,12 +296,6 @@ export default function CloudWatchVisualizer() {
     return () => clearInterval(timer);
   }, [running, threshold, snsOn, scalingOn, pushLog, flush]);
 
-  /* auto-scroll alarm history */
-  useEffect(() => {
-    const el = histBoxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [history]);
-
   /* ------------------------------ actions ------------------------------ */
   const reset = () => {
     setRunning(false);
@@ -397,22 +391,16 @@ export default function CloudWatchVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="SIGNAL SCOPE // LIVE"
-        subtitle="CLOUDWATCH METRICS → ALARM STATE MACHINE → SNS + AUTO SCALING"
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={running ? "ALARM ENGINE LIVE — EVALUATING EVERY 10S" : "ENGINE IDLE — PRESS RUN"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
+      {/* MAIN GRID — flow view left, live stats + controls rail right */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // METRICS PIPELINE"
+          subtitle="LIVE CPUUTILIZATION CHART — ALARM EVALUATION — ACTION TARGETS"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
           <FlowCanvas
-            className="h-[440px] sm:h-[540px]"
+            className="h-[440px] sm:h-[540px] lg:h-[560px]"
             ariaLabel="CloudWatch metrics alarm and actions flow diagram"
           >
             {/* SOURCE → CORE LINKS */}
@@ -631,128 +619,133 @@ export default function CloudWatchVisualizer() {
               delay={0.6}
             />
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip
-              label="CPU NOW"
-              value={`${Math.round(cpuNow)}%`}
-              tone={cpuNow > threshold ? "magenta" : "mint"}
-            />
-            <StatChip
-              label="ALARM STATE"
-              value={alarmState}
-              tone={alarmState === "ALARM" ? "magenta" : alarmState === "OK" ? "mint" : "neutral"}
-            />
-            <StatChip label="NOTIFICATIONS" value={String(notifications)} tone="magenta" />
-            <StatChip label="SCALE-OUTS" value={String(scaleOuts)} tone="mint" />
-          </div>
+        {/* RIGHT RAIL — live stats + controls */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip
+                label="CPU NOW"
+                value={`${Math.round(cpuNow)}%`}
+                tone={cpuNow > threshold ? "magenta" : "mint"}
+              />
+              <StatChip
+                label="ALARM STATE"
+                value={alarmState}
+                tone={alarmState === "ALARM" ? "magenta" : alarmState === "OK" ? "mint" : "neutral"}
+              />
+              <StatChip label="NOTIFICATIONS" value={String(notifications)} tone="magenta" />
+              <StatChip label="SCALE-OUTS" value={String(scaleOuts)} tone="mint" />
+            </div>
+          </GlassPanel>
 
-          {/* CONTROLS */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground mr-0.5">
-                THRESHOLD
-              </span>
-              {[60, 75, 90].map((t) => (
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={running ? "ALARM ENGINE LIVE — EVALUATING EVERY 10S" : "ENGINE IDLE — PRESS RUN"}
+              />
+
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                ALARM THRESHOLD
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[60, 75, 90].map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => applyThreshold(t)}
+                    aria-pressed={threshold === t}
+                    aria-label={`Set alarm threshold to ${t} percent`}
+                    className={`${BTN} ${
+                      threshold === t
+                        ? "border-aws/60 text-aws bg-aws/10"
+                        : "border-foreground/20 text-muted-foreground hover:border-aws/40"
+                    }`}
+                  >
+                    {t}%
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                ALARM ACTIONS
+              </p>
+              <div className="flex flex-wrap gap-2">
                 <button
-                  key={t}
                   type="button"
-                  onClick={() => applyThreshold(t)}
-                  aria-pressed={threshold === t}
-                  aria-label={`Set alarm threshold to ${t} percent`}
+                  onClick={toggleSns}
+                  aria-pressed={snsOn}
+                  aria-label="Toggle SNS notification action"
                   className={`${BTN} ${
-                    threshold === t
-                      ? "border-aws/60 text-aws bg-aws/10"
-                      : "border-foreground/20 text-muted-foreground hover:border-aws/40"
+                    snsOn ? "border-magenta/60 text-magenta" : "border-foreground/20 text-muted-foreground"
                   }`}
                 >
-                  {t}%
+                  <Bell className="w-3 h-3" />
+                  SNS NOTIFY {snsOn ? "ON" : "OFF"}
                 </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={toggleSns}
-              aria-pressed={snsOn}
-              aria-label="Toggle SNS notification action"
-              className={`${BTN} ${
-                snsOn ? "border-magenta/60 text-magenta" : "border-foreground/20 text-muted-foreground"
-              }`}
-            >
-              <Bell className="w-3 h-3" />
-              SNS NOTIFY {snsOn ? "ON" : "OFF"}
-            </button>
-            <button
-              type="button"
-              onClick={toggleScaling}
-              aria-pressed={scalingOn}
-              aria-label="Toggle Auto Scaling action"
-              className={`${BTN} ${
-                scalingOn ? "border-mint/60 text-mint" : "border-foreground/20 text-muted-foreground"
-              }`}
-            >
-              <TrendingUp className="w-3 h-3" />
-              SCALING ACTION {scalingOn ? "ON" : "OFF"}
-            </button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={injectCpuStorm}
-              aria-label="Inject a CPU spike into the fleet"
-              className={`${BTN} border-neon/60 text-neon hover:bg-neon/10`}
-            >
-              <Zap className="w-3 h-3" />
-              INJECT CPU SPIKE
-            </motion.button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={injectErrBurst}
-              aria-label="Inject a 5xx error burst"
-              className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
-            >
-              <Skull className="w-3 h-3" />
-              INJECT 5XX BURST
-            </motion.button>
-          </div>
+                <button
+                  type="button"
+                  onClick={toggleScaling}
+                  aria-pressed={scalingOn}
+                  aria-label="Toggle Auto Scaling action"
+                  className={`${BTN} ${
+                    scalingOn ? "border-mint/60 text-mint" : "border-foreground/20 text-muted-foreground"
+                  }`}
+                >
+                  <TrendingUp className="w-3 h-3" />
+                  SCALING ACTION {scalingOn ? "ON" : "OFF"}
+                </button>
+              </div>
 
-          {/* ALARM HISTORY TERMINAL */}
-          <div className="glass-inset p-2">
-            <div className="flex items-center justify-between px-1 pb-1.5">
-              <span className="text-[8px] font-bold uppercase tracking-[0.22em] text-aws">
-                {"ALARM HISTORY // LIVE"}
-              </span>
-              <span className="text-[7px] uppercase tracking-wider text-muted-foreground">
-                AWS/EC2 · CPUUtilization
-              </span>
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                CHAOS INJECTION
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={injectCpuStorm}
+                  aria-label="Inject a CPU spike into the fleet"
+                  className={`${BTN} border-neon/60 text-neon hover:bg-neon/10`}
+                >
+                  <Zap className="w-3 h-3" />
+                  INJECT CPU SPIKE
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={injectErrBurst}
+                  aria-label="Inject a 5xx error burst"
+                  className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
+                >
+                  <Skull className="w-3 h-3" />
+                  INJECT 5XX BURST
+                </motion.button>
+              </div>
             </div>
-            <div
-              ref={histBoxRef}
-              className="max-h-36 overflow-y-auto cyber-scroll px-1 flex flex-col gap-0.5"
-            >
-              <AnimatePresence initial={false}>
-                {history.map((l) => (
-                  <motion.p
-                    key={l.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className={`text-[8px] leading-snug tracking-wider font-bold whitespace-pre-wrap ${LOG_TONE_CLS[l.tone]}`}
-                  >
-                    {l.text}
-                  </motion.p>
-                ))}
-              </AnimatePresence>
-              {history.length === 0 && (
-                <p className="text-[8px] uppercase tracking-wider text-muted-foreground/60 py-2">
-                  NO EVENTS — PRESS RUN TO START THE METRIC STREAM
-                </p>
-              )}
-            </div>
-          </div>
+          </GlassPanel>
+        </div>
+      </div>
+
+      {/* ALARM HISTORY — full width below the main grid */}
+      <GlassPanel
+        title="ALARM HISTORY // LIVE"
+        subtitle="AWS/EC2 · CPUUtilization"
+        className="!p-0"
+        delay={0.18}
+      >
+        <div className="p-3">
+          <AutoLog
+            lines={history}
+            emptyText="NO EVENTS — PRESS RUN TO START THE METRIC STREAM"
+            tones={LOG_TONE_CLS}
+          />
         </div>
       </GlassPanel>
 

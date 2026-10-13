@@ -6,6 +6,7 @@ import { GlassPanel } from "@/components/shared/glass-panel";
 import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/flow";
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
+import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { StatChip } from "@/components/shared/typography";
 import { CloudFrontIcon, S3Icon, UserIcon } from "@/components/aws-icons";
 import { Timer, Trash2 } from "lucide-react";
@@ -58,14 +59,6 @@ const MAX_LOG = 50;
 
 const makeEdge = (): EdgeState => ({ phase: "idle", reqId: 0, age: 0, gauge: 0, fillTick: 0, hits: 0, misses: 0 });
 const computeExpiryTicks = (ttl: number) => Math.min(72, Math.max(10, Math.round(ttl / 50)));
-
-const LOG_TONE_CLS: Record<LogTone, string> = {
-  aws: "text-aws",
-  mint: "text-mint",
-  danger: "text-danger",
-  magenta: "text-magenta",
-  dim: "text-muted-foreground",
-};
 
 function EdgeNode({
   name,
@@ -164,10 +157,9 @@ export default function CloudFrontVisualizer() {
   const expiryTicksRef = useRef(computeExpiryTicks(600));
   const logRef = useRef<LogLine[]>([]);
   const logIdRef = useRef(1);
-  const logBoxRef = useRef<HTMLDivElement | null>(null);
 
   const pushLog = useCallback((text: string, tone: LogTone = "aws") => {
-    logRef.current = [...logRef.current, { id: logIdRef.current++, text, tone }].slice(-MAX_LOG);
+    logRef.current = [...logRef.current, { id: logIdRef.current++, text: `[${logTs()}] ${text}`, tone }].slice(-MAX_LOG);
   }, []);
 
   const flush = useCallback(() => {
@@ -253,11 +245,6 @@ export default function CloudFrontVisualizer() {
     return () => clearInterval(timer);
   }, [running, pushLog, flush]);
 
-  useEffect(() => {
-    const el = logBoxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [log]);
-
   const reset = () => {
     setRunning(false);
     edgesRef.current = [makeEdge(), makeEdge(), makeEdge()];
@@ -309,21 +296,15 @@ export default function CloudFrontVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="EDGE MIRROR // LIVE"
-        subtitle={`CLOUDFRONT DISTRIBUTION E12345ABC · 3 EDGE POPS · TTL ${fmtTtl(ttl)}`}
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={running ? "EDGE RACE LIVE — HIT vs MISS" : "EDGE IDLE — PRESS RUN"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="CloudFront edge cache hit versus miss race">
+      {/* MAIN GRID — flow view left, stats + controls + readout rail right */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // EDGE CACHE RACE"
+          subtitle="3 USERS → 600+ POP EDGES → S3 ORIGIN — HIT VS MISS"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="CloudFront edge cache hit versus miss race">
             {/* HEADER CHIP */}
             <div className="absolute left-3 top-2.5 z-[6] flex items-center gap-1.5 border border-aws/40 bg-black/70 backdrop-blur-sm px-2 py-1">
               <CloudFrontIcon className="w-3 h-3 text-aws" />
@@ -485,18 +466,64 @@ export default function CloudFrontVisualizer() {
               )}
             </AnimatePresence>
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="CACHE HIT RATIO" value={ratio} tone="mint" />
-            <StatChip label="AVG HIT" value={avgHitTxt} tone="mint" />
-            <StatChip label="AVG MISS" value={avgMissTxt} tone="magenta" />
-            <StatChip label="ORIGIN FETCHES" value={String(originFetches)} tone="aws" />
-          </div>
+        {/* RIGHT RAIL — LIVE STATS + CONTROLS + LATENCY READOUT */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="CACHE HIT RATIO" value={ratio} tone="mint" />
+              <StatChip label="AVG HIT" value={avgHitTxt} tone="mint" />
+              <StatChip label="AVG MISS" value={avgMissTxt} tone="magenta" />
+              <StatChip label="ORIGIN FETCHES" value={String(originFetches)} tone="aws" />
+            </div>
+          </GlassPanel>
 
-          {/* LATENCY READOUT + EDGE LOG */}
-          <div className="grid md:grid-cols-5 gap-2">
-            <div className="glass-inset p-3 md:col-span-2 flex flex-col gap-3">
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={running ? "EDGE RACE LIVE — HIT vs MISS" : "EDGE IDLE — PRESS RUN"}
+              />
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">EDGE CACHE TTL</p>
+              <div className="flex items-center gap-2 px-2 py-1 border border-foreground/25 bg-black/50 backdrop-blur-md cyber-cut-sm">
+                <Timer className="w-3 h-3 text-muted-foreground shrink-0" />
+                <input
+                  type="range"
+                  min={60}
+                  max={3600}
+                  step={60}
+                  value={ttl}
+                  onChange={(e) => changeTtl(Number(e.target.value))}
+                  aria-label="Object TTL seconds at edge"
+                  className="w-full h-1 cursor-pointer"
+                  style={{ accentColor: "#ff9900" }}
+                />
+                <span className="text-[8px] font-bold text-aws tracking-wider whitespace-nowrap">
+                  TTL {fmtTtl(ttl)}
+                </span>
+              </div>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.94 }}
+                onClick={invalidate}
+                aria-label="Invalidate all edge caches"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border border-magenta/60 text-magenta bg-black/50 backdrop-blur-md cyber-cut-sm hover:bg-magenta/10"
+              >
+                <Trash2 className="w-3 h-3" />
+                INVALIDATION /*
+              </motion.button>
+              <p className="text-[8px] uppercase tracking-[0.18em] text-muted-foreground/80 font-bold">
+                LOWER TTL → OBJECTS EXPIRE SOONER → MORE MISS ROUND-TRIPS TO S3
+              </p>
+            </div>
+          </GlassPanel>
+
+          <GlassPanel title="LATENCY READOUT" className="!p-0" delay={0.15}>
+            <div className="p-3 flex flex-col gap-3">
               <div>
                 <p className="text-[8px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
                   AVG HIT LATENCY
@@ -544,72 +571,14 @@ export default function CloudFrontVisualizer() {
                 {avgHit !== null && avgMiss !== null ? `${Math.round((avgMiss / avgHit) * 10) / 10}× SLOWER` : "ROLLING…"}
               </p>
             </div>
-            <div className="glass-inset p-2 md:col-span-3">
-              <div className="flex items-center justify-between px-1 pb-1.5">
-                <span className="text-[8px] font-bold uppercase tracking-[0.22em] text-aws">
-                  {"// EDGE LOG"}
-                </span>
-                <span className="text-[7px] uppercase tracking-wider text-muted-foreground">
-                  600+ POPS WORLDWIDE
-                </span>
-              </div>
-              <div ref={logBoxRef} className="max-h-32 overflow-y-auto cyber-scroll px-1 flex flex-col gap-0.5">
-                <AnimatePresence initial={false}>
-                  {log.map((l) => (
-                    <motion.p
-                      key={l.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.18 }}
-                      className={`text-[8.5px] leading-snug tracking-wider font-bold whitespace-pre-wrap ${LOG_TONE_CLS[l.tone]}`}
-                    >
-                      {l.text}
-                    </motion.p>
-                  ))}
-                </AnimatePresence>
-                {log.length === 0 && (
-                  <p className="text-[8px] uppercase tracking-wider text-muted-foreground/60 py-2">
-                    NO REQUESTS YET — PRESS RUN TO START THE RACE
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
+          </GlassPanel>
+        </div>
+      </div>
 
-          {/* CONTROLS */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <div className="flex items-center gap-2 px-2 py-1 border border-foreground/25 bg-black/50 backdrop-blur-md cyber-cut-sm">
-              <Timer className="w-3 h-3 text-muted-foreground" />
-              <input
-                type="range"
-                min={60}
-                max={3600}
-                step={60}
-                value={ttl}
-                onChange={(e) => changeTtl(Number(e.target.value))}
-                aria-label="Object TTL seconds at edge"
-                className="w-24 h-1 cursor-pointer"
-                style={{ accentColor: "#ff9900" }}
-              />
-              <span className="text-[8px] font-bold text-aws tracking-wider whitespace-nowrap">
-                TTL {fmtTtl(ttl)}
-              </span>
-            </div>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={invalidate}
-              aria-label="Invalidate all edge caches"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border border-magenta/60 text-magenta bg-black/50 backdrop-blur-md cyber-cut-sm hover:bg-magenta/10"
-            >
-              <Trash2 className="w-3 h-3" />
-              INVALIDATION /*
-            </motion.button>
-            <p className="text-[8px] uppercase tracking-[0.18em] text-muted-foreground/80 font-bold">
-              LOWER TTL → OBJECTS EXPIRE SOONER → MORE MISS ROUND-TRIPS TO S3
-            </p>
-          </div>
+      {/* EDGE LOG — full width below the grid */}
+      <GlassPanel title="EDGE LOG" className="!p-0" delay={0.18}>
+        <div className="p-3">
+          <AutoLog lines={log} emptyText="NO REQUESTS YET — PRESS RUN TO START THE RACE" />
         </div>
       </GlassPanel>
 

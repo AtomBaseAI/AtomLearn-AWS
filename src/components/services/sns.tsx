@@ -6,6 +6,7 @@ import { GlassPanel } from "@/components/shared/glass-panel";
 import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/flow";
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
+import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { StatChip } from "@/components/shared/typography";
 import { SNSIcon, UserIcon, SQSIcon, LambdaIcon, EmailNotificationIcon, HttpNotificationIcon } from "@/components/aws-icons";
 import { Zap, Filter, Smartphone } from "lucide-react";
@@ -81,14 +82,6 @@ const SUBS: Sub[] = [
 
 const IDLE_STATUSES: LinkStatus[] = ["idle", "idle", "idle", "idle", "idle"];
 
-const LOG_TONE_CLS: Record<LogTone, string> = {
-  aws: "text-aws",
-  mint: "text-mint",
-  danger: "text-danger",
-  magenta: "text-magenta",
-  dim: "text-muted-foreground",
-};
-
 const BTN =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm";
 
@@ -117,10 +110,9 @@ export default function SNSVisualizer() {
   const failedRef = useRef(0);
   const countsRef = useRef<number[]>([0, 0, 0, 0, 0]);
   const filterRef = useRef(false);
-  const logBoxRef = useRef<HTMLDivElement | null>(null);
 
   const pushLog = useCallback((text: string, tone: LogTone = "aws") => {
-    logRef.current = [...logRef.current, { id: logIdRef.current++, text, tone }].slice(-MAX_LOG);
+    logRef.current = [...logRef.current, { id: logIdRef.current++, text: `[${logTs()}] ${text}`, tone }].slice(-MAX_LOG);
   }, []);
 
   const flush = useCallback(() => {
@@ -195,11 +187,6 @@ export default function SNSVisualizer() {
     return () => clearInterval(timer);
   }, [running, publish]);
 
-  useEffect(() => {
-    const el = logBoxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [log]);
-
   const reset = () => {
     setRunning(false);
     logRef.current = [];
@@ -237,21 +224,15 @@ export default function SNSVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="SIGNAL BURST // LIVE"
-        subtitle={`TOPIC orders-topic · PUB/SUB FAN-OUT · FILTER POLICY ${filterOn ? "ON" : "OFF"}`}
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={running ? "TOPIC LIVE — FAN-OUT STORM" : "TOPIC IDLE — PRESS RUN"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="SNS topic fan-out to five subscribers">
+      {/* MAIN GRID — animation left, stats + controls rail right */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // TOPIC FAN-OUT"
+          subtitle="1 PUBLISHER → SNS TOPIC → 5 SUBSCRIBERS"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="SNS topic fan-out to five subscribers">
             {/* LINKS */}
             <FlowLink
               key={`pub-${fanKey}`}
@@ -384,75 +365,69 @@ export default function SNSVisualizer() {
               />
             ))}
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="MESSAGES PUBLISHED" value={String(published)} tone="aws" />
-            <StatChip label="DELIVERIES TOTAL" value={String(deliveries)} tone="mint" />
-            <StatChip label="FAN-OUT RATE" value={fanOutRate} tone="aws" />
-            <StatChip label="FAILED" value={String(failed)} tone="magenta" />
-          </div>
-
-          {/* CONTROLS */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={publish}
-              aria-label="Publish one event to the topic"
-              className={`${BTN} border-aws/60 text-aws hover:bg-aws/10`}
-            >
-              <Zap className="w-3 h-3" />
-              PUBLISH EVENT
-            </motion.button>
-            <button
-              type="button"
-              onClick={toggleFilter}
-              aria-label="Toggle message attributes and filter policy"
-              className={`${BTN} ${filterOn ? "border-magenta/60 text-magenta" : "border-foreground/25 text-muted-foreground"}`}
-            >
-              <Filter className="w-3 h-3" />
-              MSG ATTRS + FILTER POLICY {filterOn ? "ON" : "OFF"}
-            </button>
-            <p className="text-[8px] uppercase tracking-[0.18em] text-muted-foreground/80 font-bold">
-              SQS <span className="text-aws">[PURCHASE]</span> · EMAIL{" "}
-              <span className="text-magenta">[REFUND]</span> · λ / WEBHOOK / PUSH{" "}
-              <span className="text-mint">[ALL]</span>
-            </p>
-          </div>
-
-          {/* DELIVERY LOG */}
-          <div className="glass-inset p-2">
-            <div className="flex items-center justify-between px-1 pb-1.5">
-              <span className="text-[8px] font-bold uppercase tracking-[0.22em] text-aws">
-                {"// DELIVERY STREAM"}
-              </span>
-              <span className="text-[7px] uppercase tracking-wider text-muted-foreground">
-                orders-topic · {SUBS.length} SUBSCRIPTIONS
-              </span>
+        {/* RIGHT RAIL — LIVE STATS + CONTROLS */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="MESSAGES PUBLISHED" value={String(published)} tone="aws" />
+              <StatChip label="DELIVERIES TOTAL" value={String(deliveries)} tone="mint" />
+              <StatChip label="FAN-OUT RATE" value={fanOutRate} tone="aws" />
+              <StatChip label="FAILED" value={String(failed)} tone="magenta" />
             </div>
-            <div ref={logBoxRef} className="max-h-32 overflow-y-auto cyber-scroll px-1 flex flex-col gap-0.5">
-              <AnimatePresence initial={false}>
-                {log.map((l) => (
-                  <motion.p
-                    key={l.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className={`text-[8.5px] leading-snug tracking-wider font-bold whitespace-pre-wrap ${LOG_TONE_CLS[l.tone]}`}
-                  >
-                    {l.text}
-                  </motion.p>
-                ))}
-              </AnimatePresence>
-              {log.length === 0 && (
-                <p className="text-[8px] uppercase tracking-wider text-muted-foreground/60 py-2">
-                  NO SIGNALS YET — PRESS RUN OR PUBLISH AN EVENT
-                </p>
-              )}
+          </GlassPanel>
+
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={running ? "TOPIC LIVE — FAN-OUT STORM" : "TOPIC IDLE — PRESS RUN"}
+              />
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">TOPIC ACTIONS</p>
+              <div className="flex flex-wrap gap-2">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={publish}
+                  aria-label="Publish one event to the topic"
+                  className={`${BTN} border-aws/60 text-aws hover:bg-aws/10`}
+                >
+                  <Zap className="w-3 h-3" />
+                  PUBLISH EVENT
+                </motion.button>
+                <button
+                  type="button"
+                  onClick={toggleFilter}
+                  aria-label="Toggle message attributes and filter policy"
+                  className={`${BTN} ${filterOn ? "border-magenta/60 text-magenta" : "border-foreground/25 text-muted-foreground"}`}
+                >
+                  <Filter className="w-3 h-3" />
+                  MSG ATTRS + FILTER POLICY {filterOn ? "ON" : "OFF"}
+                </button>
+              </div>
+              <p className="text-[8px] uppercase tracking-[0.18em] text-muted-foreground/80 font-bold">
+                SQS <span className="text-aws">[PURCHASE]</span> · EMAIL{" "}
+                <span className="text-magenta">[REFUND]</span> · λ / WEBHOOK / PUSH{" "}
+                <span className="text-mint">[ALL]</span>
+              </p>
             </div>
-          </div>
+          </GlassPanel>
+        </div>
+      </div>
+
+      {/* DELIVERY STREAM — full width below the grid */}
+      <GlassPanel
+        title="DELIVERY STREAM"
+        subtitle={`orders-topic · ${SUBS.length} SUBSCRIPTIONS`}
+        className="!p-0"
+        delay={0.18}
+      >
+        <div className="p-3">
+          <AutoLog lines={log} emptyText="NO SIGNALS YET — PRESS RUN OR PUBLISH AN EVENT" />
         </div>
       </GlassPanel>
 

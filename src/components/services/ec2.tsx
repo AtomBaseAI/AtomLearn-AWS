@@ -6,6 +6,7 @@ import { GlassPanel } from "@/components/shared/glass-panel";
 import { FlowCanvas, FlowNode, FlowLink, FlowLabel, type NodeStatus } from "@/components/shared/flow";
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
+import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { StatChip } from "@/components/shared/typography";
 import { EC2Icon, AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
 import {
@@ -125,7 +126,8 @@ export default function EC2Visualizer() {
   };
 
   const pushLog = (text: string, tone: LogTone) => {
-    setLogs((prev) => [...prev.slice(-40), { id: logIdRef.current++, text, tone }]);
+    const ts = logTs();
+    setLogs((prev) => [...prev.slice(-40), { id: logIdRef.current++, text: `[${ts}] ${text}`, tone }]);
   };
 
   const go = (link: LinkKey, to: LifecycleState, line: string, tone: LogTone, ms: number) => {
@@ -302,16 +304,10 @@ export default function EC2Visualizer() {
       <GlassPanel
         title="LIFECYCLE STATE MACHINE"
         subtitle={`instance ${instanceId} :: t3.micro · us-east-1a · user-data armed`}
-        actions={
-          <SimControls
-            running={simRunning}
-            onToggle={() => setSimRunning((r) => !r)}
-            onReset={resetLifecycle}
-            status={simRunning ? "AUTOPILOT ENGAGED — DRIVING TRANSITIONS" : "MANUAL CONTROL — PRESS RUN OR A BUTTON"}
-          />
-        }
+        className="!p-0"
       >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
+        {/* LIFECYCLE GRAPH + RIGHT RAIL */}
+        <div className="p-3 sm:p-4 grid lg:grid-cols-[minmax(0,1fr)_300px] gap-3 items-start">
           <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="EC2 instance lifecycle state machine">
             {/* LINKS */}
             <FlowLink d="M19,48 L32,48" status={transition === "start" ? "flowing" : "idle"} dotDuration={1.2} />
@@ -344,103 +340,109 @@ export default function EC2Visualizer() {
             <FlowLabel x={42} y={80} tone="mint">REVIVE</FlowLabel>
           </FlowCanvas>
 
-          {/* ACTION BUTTONS */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={doStart}
-              disabled={state !== "STOPPED" || transition !== null}
-              className={`${BTN} border-mint/60 text-mint hover:bg-mint/10`}
-              aria-label="Start instance"
-            >
-              <Play className="w-3 h-3" />
-              START
-            </motion.button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={doStop}
-              disabled={state !== "RUNNING" || transition !== null}
-              className={`${BTN} border-neon/60 text-neon hover:bg-neon/10`}
-              aria-label="Stop instance"
-            >
-              <Square className="w-3 h-3" />
-              STOP
-            </motion.button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={doReboot}
-              disabled={state !== "RUNNING" || transition !== null}
-              className={`${BTN} border-aws/60 text-aws hover:bg-aws/10`}
-              aria-label="Reboot instance"
-            >
-              <RotateCw className="w-3 h-3" />
-              REBOOT
-            </motion.button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={doTerminate}
-              disabled={state !== "RUNNING" || transition !== null}
-              className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
-              aria-label="Terminate instance"
-            >
-              <Trash2 className="w-3 h-3" />
-              TERMINATE
-            </motion.button>
-            <AnimatePresence>
-              {state === "TERMINATED" && (
-                <motion.button
-                  type="button"
-                  initial={{ opacity: 0, scale: 0.7 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.7 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={doRevive}
-                  disabled={transition !== null}
-                  className={`${BTN} border-mint bg-mint/15 text-mint shadow-[0_0_16px_rgba(0,255,163,0.3)]`}
-                  aria-label="Revive terminated instance from AMI snapshot"
-                >
-                  <Zap className="w-3 h-3" />
-                  REVIVE INSTANCE
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
+          {/* RIGHT RAIL — lifecycle stats + controls */}
+          <div className="flex flex-col gap-3 min-w-0">
+            {/* LIFECYCLE STATS */}
+            <div className="glass-inset p-3 grid grid-cols-2 gap-2">
+              <StatChip label="STATE" value={state} tone={state === "RUNNING" ? "mint" : state === "TERMINATED" ? "magenta" : "aws"} />
+              <StatChip label="TRANSITIONS" value={String(transitions)} tone="neutral" delay={0.05} />
+              <StatChip label="AUTOPILOT" value={simRunning ? "ENGAGED" : "STANDBY"} delay={0.1} />
+              <StatChip label="INSTANCE ID" value={instanceId} tone="neutral" delay={0.15} />
+            </div>
 
-          {/* STATE LOG */}
-          <div className="glass-inset cyber-scroll max-h-28 overflow-y-auto p-2 text-[9px] leading-relaxed" aria-live="polite">
-            <AnimatePresence initial={false}>
-              {logs.slice(-16).map((l) => (
-                <motion.p
-                  key={l.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className={`${TONE_CLS[l.tone]} font-bold tracking-wider truncate`}
-                >
-                  {l.text}
-                </motion.p>
-              ))}
-            </AnimatePresence>
-            {logs.length === 0 && (
-              <p className="text-muted-foreground/60 font-bold tracking-wider">{"//"} state log empty — press START or engage autopilot</p>
-            )}
+            {/* CONTROLS — sim driver + lifecycle actions (moved out of the deleted header/strip) */}
+            <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+              <div className="p-3 flex flex-col gap-2.5">
+                <SimControls
+                  running={simRunning}
+                  onToggle={() => setSimRunning((r) => !r)}
+                  onReset={resetLifecycle}
+                  status={simRunning ? "AUTOPILOT ENGAGED — DRIVING TRANSITIONS" : "MANUAL CONTROL — PRESS RUN OR A BUTTON"}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={doStart}
+                    disabled={state !== "STOPPED" || transition !== null}
+                    className={`${BTN} border-mint/60 text-mint hover:bg-mint/10`}
+                    aria-label="Start instance"
+                  >
+                    <Play className="w-3 h-3" />
+                    START
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={doStop}
+                    disabled={state !== "RUNNING" || transition !== null}
+                    className={`${BTN} border-neon/60 text-neon hover:bg-neon/10`}
+                    aria-label="Stop instance"
+                  >
+                    <Square className="w-3 h-3" />
+                    STOP
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={doReboot}
+                    disabled={state !== "RUNNING" || transition !== null}
+                    className={`${BTN} border-aws/60 text-aws hover:bg-aws/10`}
+                    aria-label="Reboot instance"
+                  >
+                    <RotateCw className="w-3 h-3" />
+                    REBOOT
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={doTerminate}
+                    disabled={state !== "RUNNING" || transition !== null}
+                    className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
+                    aria-label="Terminate instance"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    TERMINATE
+                  </motion.button>
+                  <AnimatePresence>
+                    {state === "TERMINATED" && (
+                      <motion.button
+                        type="button"
+                        initial={{ opacity: 0, scale: 0.7 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.7 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.94 }}
+                        onClick={doRevive}
+                        disabled={transition !== null}
+                        className={`${BTN} border-mint bg-mint/15 text-mint shadow-[0_0_16px_rgba(0,255,163,0.3)]`}
+                        aria-label="Revive terminated instance from AMI snapshot"
+                      >
+                        <Zap className="w-3 h-3" />
+                        REVIVE INSTANCE
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </GlassPanel>
           </div>
+        </div>
+      </GlassPanel>
 
-          {/* LIFECYCLE STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="STATE" value={state} tone={state === "RUNNING" ? "mint" : state === "TERMINATED" ? "magenta" : "aws"} />
-            <StatChip label="TRANSITIONS" value={String(transitions)} tone="neutral" delay={0.05} />
-            <StatChip label="AUTOPILOT" value={simRunning ? "ENGAGED" : "STANDBY"} delay={0.1} />
-            <StatChip label="INSTANCE ID" value={instanceId} tone="neutral" delay={0.15} />
-          </div>
+      {/* ══════════ STATE LOG // LIVE (full-width bottom log — moved out of the rail) ══════════ */}
+      <GlassPanel
+        title="STATE LOG // LIVE"
+        subtitle={`instance ${instanceId} :: lifecycle transitions`}
+        className="!p-0"
+        delay={0.12}
+      >
+        <div className="p-3">
+          <AutoLog lines={logs} emptyText="// state log empty — press START or engage autopilot" tones={TONE_CLS} />
         </div>
       </GlassPanel>
 
@@ -449,49 +451,10 @@ export default function EC2Visualizer() {
         title="AUTO SCALING GROUP SIM"
         subtitle={`launch template ${selectedFamily.name.toLowerCase()} · target tracking — scale-out > 70% · scale-in < 30%`}
         delay={0.1}
-        actions={
-          <SimControls
-            running={asgRunning}
-            onToggle={() => setAsgRunning((r) => !r)}
-            onReset={resetAsg}
-            status={asgRunning ? "ASG ONLINE — POLICY EVALUATING EVERY TICK" : "ASG IDLE — PRESS RUN"}
-          />
-        }
+        className="!p-0"
       >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          {/* CPU LOAD DRIVER */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3">
-              <Cpu className="w-3.5 h-3.5 shrink-0 text-aws" />
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={load}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  loadRef.current = v;
-                  setLoad(v);
-                }}
-                className="w-full accent-[#ff9900] cursor-pointer"
-                aria-label="Simulated CPU load percentage"
-              />
-              <span className="w-12 text-right text-[10px] font-extrabold tracking-wider text-aws">{load}%</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 flex-1 border border-aws/20 bg-black/60 overflow-hidden">
-                <motion.div
-                  className={`h-full ${avgCpu > 70 ? "bg-danger" : avgCpu < 30 ? "bg-mint" : "bg-aws"}`}
-                  animate={{ width: `${avgCpu}%` }}
-                  transition={{ duration: 0.5 }}
-                />
-              </div>
-              <span className={`text-[9px] font-extrabold tracking-wider ${avgCpu > 70 ? "text-danger" : avgCpu < 30 ? "text-mint" : "text-aws"}`}>
-                AVG {avgCpu}%
-              </span>
-            </div>
-          </div>
-
+        {/* ASG VISUAL + RIGHT RAIL */}
+        <div className="p-3 sm:p-4 grid lg:grid-cols-[minmax(0,1fr)_300px] gap-3 items-start">
           {/* ASG BOUNDARY + INSTANCE CHIPS */}
           <div className="relative border border-dashed border-aws/45 bg-aws/[0.03] p-3">
             <div className="flex flex-wrap items-center justify-between gap-1 pb-2">
@@ -533,74 +496,120 @@ export default function EC2Visualizer() {
             </div>
           </div>
 
-          {/* LATEST POLICY EVENT */}
-          <div className="min-h-[18px]">
+          {/* RIGHT RAIL — ASG stats + policy event ticker + family detail */}
+          <div className="flex flex-col gap-3 min-w-0">
+            {/* ASG STATS */}
+            <div className="glass-inset p-3 grid grid-cols-2 gap-2">
+              <StatChip label="INSTANCES" value={String(actual)} tone="mint" />
+              <StatChip label="CPU LOAD" value={`${avgCpu}%`} tone={avgCpu > 70 ? "magenta" : "aws"} delay={0.05} />
+              <StatChip label="DESIRED / ACTUAL" value={`${desired} / ${actual}`} delay={0.1} />
+              <StatChip label="MIN / MAX" value="1 / 6" tone="neutral" delay={0.15} />
+            </div>
+
+            {/* CONTROLS — sim driver + cpu load + instance family (moved out of the deleted header/strip) */}
+            <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+              <div className="p-3 flex flex-col gap-2.5">
+                <SimControls
+                  running={asgRunning}
+                  onToggle={() => setAsgRunning((r) => !r)}
+                  onReset={resetAsg}
+                  status={asgRunning ? "ASG ONLINE — POLICY EVALUATING EVERY TICK" : "ASG IDLE — PRESS RUN"}
+                />
+                <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">CPU LOAD DRIVER</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <Cpu className="w-3.5 h-3.5 shrink-0 text-aws" />
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={load}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        loadRef.current = v;
+                        setLoad(v);
+                      }}
+                      className="w-full accent-[#ff9900] cursor-pointer"
+                      aria-label="Simulated CPU load percentage"
+                    />
+                    <span className="w-12 text-right text-[10px] font-extrabold tracking-wider text-aws">{load}%</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 flex-1 border border-aws/20 bg-black/60 overflow-hidden">
+                      <motion.div
+                        className={`h-full ${avgCpu > 70 ? "bg-danger" : avgCpu < 30 ? "bg-mint" : "bg-aws"}`}
+                        animate={{ width: `${avgCpu}%` }}
+                        transition={{ duration: 0.5 }}
+                      />
+                    </div>
+                    <span className={`text-[9px] font-extrabold tracking-wider ${avgCpu > 70 ? "text-danger" : avgCpu < 30 ? "text-mint" : "text-aws"}`}>
+                      AVG {avgCpu}%
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">INSTANCE FAMILY</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {FAMILIES.map((f) => {
+                    const selected = f.id === family;
+                    return (
+                      <motion.button
+                        key={f.id}
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.94 }}
+                        onClick={() => setFamily(f.id)}
+                        aria-label={`Select ${f.name} ${f.role.toLowerCase()} instance family`}
+                        className={`flex flex-col items-center gap-1 px-2 py-2.5 border bg-black/50 backdrop-blur-md cyber-cut-sm transition-colors ${
+                          selected ? "border-aws bg-aws/10 text-aws box-glow" : "border-foreground/20 text-foreground/70 hover:border-aws/40"
+                        }`}
+                      >
+                        <f.icon className="w-3.5 h-3.5" />
+                        <span className="text-[9px] font-extrabold tracking-[0.14em]">{f.name}</span>
+                        <span className="text-[6.5px] tracking-[0.16em] opacity-70">{f.role}</span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            </GlassPanel>
+
+            {/* LATEST POLICY EVENT */}
+            <div className="min-h-[18px]">
+              <AnimatePresence mode="wait">
+                {asgEvent && (
+                  <motion.p
+                    key={asgEvent}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="text-[9px] font-bold tracking-wider text-neon truncate"
+                  >
+                    {asgEvent}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* FAMILY DETAIL STRIP */}
             <AnimatePresence mode="wait">
-              {asgEvent && (
-                <motion.p
-                  key={asgEvent}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="text-[9px] font-bold tracking-wider text-neon truncate"
-                >
-                  {asgEvent}
-                </motion.p>
-              )}
+              <motion.div
+                key={selectedFamily.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="glass-inset flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2"
+              >
+                <span className="text-[10px] font-extrabold tracking-[0.18em] text-aws">
+                  {selectedFamily.name} <span className="text-muted-foreground">— {selectedFamily.role}</span>
+                </span>
+                <span className="text-[9px] font-bold tracking-wider text-foreground/80">{selectedFamily.vcpu} vCPU</span>
+                <span className="text-[9px] font-bold tracking-wider text-foreground/80">{selectedFamily.mem} GB RAM</span>
+                {selectedFamily.extra && <span className="text-[9px] font-bold tracking-wider text-magenta">{selectedFamily.extra}</span>}
+                <span className="text-[9px] font-bold tracking-wider text-mint">{selectedFamily.use}</span>
+              </motion.div>
             </AnimatePresence>
           </div>
-
-          {/* ASG STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="INSTANCES" value={String(actual)} tone="mint" />
-            <StatChip label="CPU LOAD" value={`${avgCpu}%`} tone={avgCpu > 70 ? "magenta" : "aws"} delay={0.05} />
-            <StatChip label="DESIRED / ACTUAL" value={`${desired} / ${actual}`} delay={0.1} />
-            <StatChip label="MIN / MAX" value="1 / 6" tone="neutral" delay={0.15} />
-          </div>
-
-          {/* INSTANCE FAMILY GRID */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1">
-            {FAMILIES.map((f) => {
-              const selected = f.id === family;
-              return (
-                <motion.button
-                  key={f.id}
-                  type="button"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={() => setFamily(f.id)}
-                  aria-label={`Select ${f.name} ${f.role.toLowerCase()} instance family`}
-                  className={`flex flex-col items-center gap-1 px-2 py-2.5 border bg-black/50 backdrop-blur-md cyber-cut-sm transition-colors ${
-                    selected ? "border-aws bg-aws/10 text-aws box-glow" : "border-foreground/20 text-foreground/70 hover:border-aws/40"
-                  }`}
-                >
-                  <f.icon className="w-3.5 h-3.5" />
-                  <span className="text-[9px] font-extrabold tracking-[0.14em]">{f.name}</span>
-                  <span className="text-[6.5px] tracking-[0.16em] opacity-70">{f.role}</span>
-                </motion.button>
-              );
-            })}
-          </div>
-
-          {/* FAMILY DETAIL STRIP */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={selectedFamily.id}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="glass-inset flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2"
-            >
-              <span className="text-[10px] font-extrabold tracking-[0.18em] text-aws">
-                {selectedFamily.name} <span className="text-muted-foreground">— {selectedFamily.role}</span>
-              </span>
-              <span className="text-[9px] font-bold tracking-wider text-foreground/80">{selectedFamily.vcpu} vCPU</span>
-              <span className="text-[9px] font-bold tracking-wider text-foreground/80">{selectedFamily.mem} GB RAM</span>
-              {selectedFamily.extra && <span className="text-[9px] font-bold tracking-wider text-magenta">{selectedFamily.extra}</span>}
-              <span className="text-[9px] font-bold tracking-wider text-mint">{selectedFamily.use}</span>
-            </motion.div>
-          </AnimatePresence>
         </div>
       </GlassPanel>
 

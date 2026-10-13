@@ -194,21 +194,15 @@ export default function S3Visualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="INFINITE VAULT // LIVE"
-        subtitle={`app-assets-us-east-1 — LIFECYCLE 90/180/365 DAYS ${versioning ? "// VERSIONING ON" : "// VERSIONING SUSPENDED"}`}
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={running ? `BUCKET ONLINE — DAY ${days} — OBJECTS FLOWING` : "VAULT IDLE — PRESS RUN"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="S3 lifecycle and replication flow diagram">
+      {/* MAIN GRID — animation left, rail right */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // OBJECT LIFECYCLE"
+          subtitle="UPLOADS → TIERING → CROSS-REGION REPLICATION"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="S3 lifecycle and replication flow diagram">
             {/* LINKS */}
             <FlowLink d="M14,11 C22,11 24,15 29,19" status={prodActive ? "flowing" : "idle"} dotDuration={1.2} />
             <FlowLink d="M50,21 C62,21 63,21 74,21" dashed status={replActive ? "flowing" : "idle"} dotDuration={1.4} />
@@ -396,20 +390,73 @@ export default function S3Visualizer() {
             <FlowLabel x={37} y={52.5} tone="default">{"≥ 90 DAYS"}</FlowLabel>
             <FlowLabel x={37} y={65} tone="default">{"≥ 180 DAYS"}</FlowLabel>
             <FlowLabel x={37} y={77.5} tone="default">{"≥ 365 DAYS"}</FlowLabel>
+          </FlowCanvas>
+        </GlassPanel>
 
-            {/* COST PANEL */}
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-              className="absolute z-[5]"
-              style={{ left: "45%", top: "46%", width: "52%" }}
-            >
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="OBJECTS" value={String(objects.length)} />
+              <StatChip label="DAYS ELAPSED" value={String(days)} tone="neutral" />
+              <StatChip label="REPLICA OBJECTS" value={String(replica.length)} tone="magenta" />
+              <StatChip label="EST $/GB-MO" value={`$${avgCost.toFixed(4)}`} tone={avgCost <= 0.008 && objects.length > 0 ? "mint" : "aws"} />
+            </div>
+          </GlassPanel>
+
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={running ? `BUCKET ONLINE — DAY ${days} — OBJECTS FLOWING` : "VAULT IDLE — PRESS RUN"}
+              />
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">BUCKET CONFIG</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={toggleVersioning}
+                  aria-label="Toggle S3 bucket versioning"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm ${
+                    versioning ? "border-mint/60 text-mint" : "border-danger/60 text-danger"
+                  }`}
+                >
+                  <Layers className="w-3 h-3" />
+                  VERSIONING {versioning ? "ON" : "OFF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleReplication}
+                  aria-label="Toggle cross-region replication"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm ${
+                    replication ? "border-magenta/60 text-magenta" : "border-foreground/25 text-muted-foreground"
+                  }`}
+                >
+                  <Copy className="w-3 h-3" />
+                  REPLICATION {replication ? "ON" : "OFF"}
+                </button>
+              </div>
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">OBJECT ACTIONS</p>
+              <div className="flex flex-wrap gap-2">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={putObject}
+                  aria-label="Manually upload an object to the bucket"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border border-aws/60 text-aws bg-black/50 backdrop-blur-md cyber-cut-sm hover:bg-aws/10"
+                >
+                  <CloudUpload className="w-3 h-3" />
+                  PUT OBJECT
+                </motion.button>
+              </div>
+            </div>
+          </GlassPanel>
+
+          <GlassPanel title="STORAGE CLASS PRICING // $ PER GB-MONTH" className="!p-0" delay={0.15}>
+            <div className="p-3">
               <div className="glass-inset cyber-cut-sm p-2">
-                <p className="text-[7px] font-bold uppercase tracking-[0.22em] text-aws pb-1 border-b border-aws/15">
-                  STORAGE CLASS PRICING {"//"} $ PER GB-MONTH
-                </p>
-                <div className="flex flex-col gap-1.5 pt-1.5">
+                <div className="flex flex-col gap-1.5">
                   {TIER_ORDER.map((t) => (
                     <div key={t} className="flex items-center gap-1.5">
                       <span className={`text-[6.5px] font-bold w-[74px] shrink-0 tracking-wider ${TIER_META[t].cls}`}>{t}</span>
@@ -428,54 +475,31 @@ export default function S3Visualizer() {
                   ))}
                 </div>
               </div>
-            </motion.div>
-          </FlowCanvas>
+            </div>
+          </GlassPanel>
 
-          {/* STATS + TOGGLES */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="OBJECTS" value={String(objects.length)} />
-            <StatChip label="DAYS ELAPSED" value={String(days)} tone="neutral" />
-            <StatChip label="REPLICA OBJECTS" value={String(replica.length)} tone="magenta" />
-            <StatChip label="EST $/GB-MO" value={`$${avgCost.toFixed(4)}`} tone={avgCost <= 0.008 && objects.length > 0 ? "mint" : "aws"} />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={toggleVersioning}
-              aria-label="Toggle S3 bucket versioning"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm ${
-                versioning ? "border-mint/60 text-mint" : "border-danger/60 text-danger"
-              }`}
-            >
-              <Layers className="w-3 h-3" />
-              VERSIONING {versioning ? "ON" : "OFF"}
-            </button>
-            <button
-              type="button"
-              onClick={toggleReplication}
-              aria-label="Toggle cross-region replication"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm ${
-                replication ? "border-magenta/60 text-magenta" : "border-foreground/25 text-muted-foreground"
-              }`}
-            >
-              <Copy className="w-3 h-3" />
-              REPLICATION {replication ? "ON" : "OFF"}
-            </button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={putObject}
-              aria-label="Manually upload an object to the bucket"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border border-aws/60 text-aws bg-black/50 backdrop-blur-md cyber-cut-sm hover:bg-aws/10"
-            >
-              <CloudUpload className="w-3 h-3" />
-              PUT OBJECT
-            </motion.button>
-          </div>
+          <GlassPanel title="RECENT OBJECTS" className="!p-0" delay={0.2}>
+            <div className="p-3">
+              <div className="glass-inset p-2.5 max-h-40 overflow-y-auto cyber-scroll flex flex-col gap-1">
+                {objects.slice(-8).map((o) => (
+                  <div
+                    key={o.id}
+                    className="flex items-center gap-1.5 border border-foreground/10 bg-black/30 px-1.5 py-1 text-[7.5px] font-bold tracking-wider"
+                  >
+                    <span className={`w-1.5 h-1.5 shrink-0 ${TIER_META[o.tier].bar}`} aria-hidden="true" />
+                    <span className="truncate text-foreground/85">{o.key}</span>
+                    <span className="text-muted-foreground">v{o.ver}</span>
+                    <span className={`ml-auto text-[6.5px] ${TIER_META[o.tier].cls}`}>{o.tier}</span>
+                  </div>
+                ))}
+                {objects.length === 0 && (
+                  <p className="text-[7.5px] uppercase tracking-wider text-muted-foreground">NO OBJECTS — PRESS PUT OBJECT</p>
+                )}
+              </div>
+            </div>
+          </GlassPanel>
         </div>
-      </GlassPanel>
+      </div>
 
       {/* KNOWLEDGE */}
       <div className="grid md:grid-cols-3 gap-3">

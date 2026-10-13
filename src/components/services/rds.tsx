@@ -7,6 +7,7 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
+import { AutoLog } from "@/components/shared/auto-log";
 import { EC2Icon, RDSIcon, RDSInstanceIcon, RDSProxyIcon } from "@/components/aws-icons";
 import { Layers, Gauge, Zap, ZapOff, Power } from "lucide-react";
 
@@ -326,7 +327,6 @@ export default function RDSVisualizer() {
   const lastReadTargetRef = useRef(-1);
   const logRef = useRef<LogLine[]>([]);
   const logIdRef = useRef(1);
-  const logBoxRef = useRef<HTMLDivElement | null>(null);
 
   const pushLog = useCallback((text: string, tone: LogTone = "aws") => {
     logRef.current = [...logRef.current, { id: logIdRef.current++, text, tone }].slice(-MAX_LOG);
@@ -513,12 +513,6 @@ export default function RDSVisualizer() {
     return () => clearInterval(timer);
   }, [running, multiAZ, proxyOn, replicaCount, pushLog, flush]);
 
-  /* auto-scroll the engine log */
-  useEffect(() => {
-    const el = logBoxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [log]);
-
   const reset = () => {
     setRunning(false);
     writesTotalRef.current = 0;
@@ -660,21 +654,15 @@ export default function RDSVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="SYNC SHADOW // LIVE"
-        subtitle={`RDS POSTGRES 16.4 · ${multiAZ ? "MULTI-AZ SYNC STANDBY" : "SINGLE-AZ — NO STANDBY"} · ${replicaCount} READ REPLICA${replicaCount === 1 ? "" : "S"}`}
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={statusLine}
-          />
-        }
-      >
-        <div className="flex flex-col gap-3 p-3 sm:p-4">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="RDS multi-AZ failover and read replica flow diagram">
+      {/* FLOW VIEW + RIGHT RAIL */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // DATABASE ENGINE"
+          subtitle="MULTI-AZ STANDBY + READ REPLICA — WRITES · READS · FAILOVER"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="RDS multi-AZ failover and read replica flow diagram">
             {/* HEADER CHIP */}
             <div className="absolute left-3 top-2.5 z-[6] flex items-center gap-1.5 border border-aws/40 bg-black/70 px-2 py-1 backdrop-blur-sm">
               <RDSIcon className="w-3 h-3 text-aws" />
@@ -855,141 +843,142 @@ export default function RDSVisualizer() {
               )}
             </AnimatePresence>
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <StatChip label="WRITES" value={String(writesTotal)} />
-            <StatChip label="READS" value={String(readsTotal)} />
-            <StatChip
-              label="MAX REPLICA LAG"
-              value={maxLag === null ? "—" : `${maxLag}MS`}
-              tone={maxLag !== null && maxLag > 500 ? "magenta" : "aws"}
-            />
-            <StatChip label="FAILOVERS" value={String(failovers)} tone="mint" />
-          </div>
-
-          {/* CONTROLS */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={toggleMultiAZ}
-              aria-pressed={multiAZ}
-              aria-label="Toggle Multi-AZ deployment"
-              className={`${BTN_BASE} ${multiAZ ? "border-magenta/60 text-magenta" : "border-aws/50 text-aws"}`}
-            >
-              <Layers className="w-3 h-3" />
-              MULTI-AZ {multiAZ ? "ON" : "OFF"}
-            </button>
-            <button
-              type="button"
-              onClick={toggleProxy}
-              aria-pressed={proxyOn}
-              aria-label="Toggle RDS Proxy connection pooling"
-              className={`${BTN_BASE} ${proxyOn ? "border-mint/60 text-mint" : "border-aws/50 text-aws"}`}
-            >
-              <Gauge className="w-3 h-3" />
-              RDS PROXY {proxyOn ? "ON" : "OFF"}
-            </button>
-            <div
-              role="group"
-              aria-label="Read replica count"
-              className="flex items-center gap-1.5 border border-foreground/25 bg-black/50 px-2 py-1 backdrop-blur-md cyber-cut-sm"
-            >
-              <span className="text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground">REPLICAS</span>
-              {[0, 1, 2].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => changeReplicas(n)}
-                  aria-pressed={replicaCount === n}
-                  aria-label={`Set read replicas to ${n}`}
-                  className={`border px-2 py-0.5 text-[9px] font-bold ${
-                    replicaCount === n
-                      ? "border-aws/70 bg-aws/10 text-aws"
-                      : "border-foreground/25 text-muted-foreground hover:text-aws"
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
+        {/* RIGHT RAIL — live stats + controls */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="WRITES" value={String(writesTotal)} />
+              <StatChip label="READS" value={String(readsTotal)} />
+              <StatChip
+                label="MAX REPLICA LAG"
+                value={maxLag === null ? "—" : `${maxLag}MS`}
+                tone={maxLag !== null && maxLag > 500 ? "magenta" : "aws"}
+              />
+              <StatChip label="FAILOVERS" value={String(failovers)} tone="mint" />
             </div>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={injectStorm}
-              aria-label="Inject a write storm burst"
-              className={`${BTN_BASE} border-neon/60 text-neon hover:bg-neon/10`}
-            >
-              <Zap className="w-3 h-3" />
-              WRITE STORM
-            </motion.button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={triggerFailover}
-              disabled={failoverPhase !== "none"}
-              aria-label="Trigger automatic failover"
-              className={`${BTN_BASE} border-danger/60 text-danger hover:bg-danger/10 disabled:opacity-40`}
-            >
-              <ZapOff className="w-3 h-3" />
-              {failoverPhase === "none" ? "FAILOVER" : `FAILOVER — ${failoverPhase.toUpperCase()}`}
-            </motion.button>
-            <AnimatePresence>
-              {outageActive && (
-                <motion.button
-                  key="restore"
+          </GlassPanel>
+
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={statusLine}
+              />
+
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                TOPOLOGY & POOLING
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
                   type="button"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
+                  onClick={toggleMultiAZ}
+                  aria-pressed={multiAZ}
+                  aria-label="Toggle Multi-AZ deployment"
+                  className={`${BTN_BASE} ${multiAZ ? "border-magenta/60 text-magenta" : "border-aws/50 text-aws"}`}
+                >
+                  <Layers className="w-3 h-3" />
+                  MULTI-AZ {multiAZ ? "ON" : "OFF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleProxy}
+                  aria-pressed={proxyOn}
+                  aria-label="Toggle RDS Proxy connection pooling"
+                  className={`${BTN_BASE} ${proxyOn ? "border-mint/60 text-mint" : "border-aws/50 text-aws"}`}
+                >
+                  <Gauge className="w-3 h-3" />
+                  RDS PROXY {proxyOn ? "ON" : "OFF"}
+                </button>
+              </div>
+
+              <div
+                role="group"
+                aria-label="Read replica count"
+                className="flex w-full items-center gap-1.5 border border-foreground/25 bg-black/50 px-2 py-1 backdrop-blur-md cyber-cut-sm"
+              >
+                <span className="text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground">REPLICAS</span>
+                {[0, 1, 2].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => changeReplicas(n)}
+                    aria-pressed={replicaCount === n}
+                    aria-label={`Set read replicas to ${n}`}
+                    className={`border px-2 py-0.5 text-[9px] font-bold ${
+                      replicaCount === n
+                        ? "border-aws/70 bg-aws/10 text-aws"
+                        : "border-foreground/25 text-muted-foreground hover:text-aws"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                FAILOVER & LOAD
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <motion.button
+                  type="button"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.94 }}
-                  onClick={restoreWriter}
-                  aria-label="Restore the writer instance"
-                  className={`${BTN_BASE} border-mint/60 text-mint hover:bg-mint/10`}
+                  onClick={injectStorm}
+                  aria-label="Inject a write storm burst"
+                  className={`${BTN_BASE} border-neon/60 text-neon hover:bg-neon/10`}
                 >
-                  <Power className="w-3 h-3" />
-                  RESTORE WRITER
+                  <Zap className="w-3 h-3" />
+                  WRITE STORM
                 </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={triggerFailover}
+                  disabled={failoverPhase !== "none"}
+                  aria-label="Trigger automatic failover"
+                  className={`${BTN_BASE} border-danger/60 text-danger hover:bg-danger/10 disabled:opacity-40`}
+                >
+                  <ZapOff className="w-3 h-3" />
+                  {failoverPhase === "none" ? "FAILOVER" : `FAILOVER — ${failoverPhase.toUpperCase()}`}
+                </motion.button>
+                <AnimatePresence>
+                  {outageActive && (
+                    <motion.button
+                      key="restore"
+                      type="button"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.94 }}
+                      onClick={restoreWriter}
+                      aria-label="Restore the writer instance"
+                      className={`${BTN_BASE} border-mint/60 text-mint hover:bg-mint/10`}
+                    >
+                      <Power className="w-3 h-3" />
+                      RESTORE WRITER
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </GlassPanel>
+        </div>
+      </div>
 
-          {/* ENGINE LOG */}
-          <div className="glass-inset p-2">
-            <div className="flex items-center justify-between px-1 pb-1.5">
-              <span className="text-[8px] font-bold uppercase tracking-[0.22em] text-aws">ENGINE LOG {"//"} LIVE</span>
-              <span className="text-[7px] uppercase tracking-wider text-muted-foreground">
-                {multiAZ ? "SYNC STANDBY" : "NO STANDBY"} · {TICK_MS}MS TICK
-              </span>
-            </div>
-            <div
-              ref={logBoxRef}
-              className="cyber-scroll flex max-h-40 flex-col gap-0.5 overflow-y-auto p-2"
-            >
-              <AnimatePresence initial={false}>
-                {log.map((l) => (
-                  <motion.p
-                    key={l.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className={`whitespace-pre-wrap font-mono text-[8px] font-bold leading-snug tracking-wider ${LOG_TONE_CLS[l.tone]}`}
-                  >
-                    {l.text}
-                  </motion.p>
-                ))}
-              </AnimatePresence>
-              {log.length === 0 && (
-                <p className="py-1 text-[8px] uppercase tracking-wider text-muted-foreground/60">
-                  NO EVENTS YET — PRESS RUN TO START THE ENGINE
-                </p>
-              )}
-            </div>
-          </div>
+      {/* ENGINE LOG — full width below the main grid */}
+      <GlassPanel title="ENGINE LOG // LIVE" className="!p-0" delay={0.18}>
+        <div className="p-3">
+          <AutoLog
+            lines={log}
+            emptyText="NO EVENTS YET — PRESS RUN TO START THE ENGINE"
+            tones={LOG_TONE_CLS}
+          />
         </div>
       </GlassPanel>
 

@@ -6,6 +6,7 @@ import { GlassPanel } from "@/components/shared/glass-panel";
 import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/flow";
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
+import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { StatChip } from "@/components/shared/typography";
 import { APIGatewayIcon, LambdaIcon, S3Icon, ServerIcon, UserIcon } from "@/components/aws-icons";
 import { Zap, Gauge, Database, Timer } from "lucide-react";
@@ -40,14 +41,6 @@ const TARGET_LOG = ["AWS_PROXY lambda", "HTTP_PROXY backend", "AWS s3 GET"];
 
 const MAX_LOG = 42;
 const TICK_MS = 350;
-
-const LOG_TONE_CLS: Record<LogTone, string> = {
-  aws: "text-aws",
-  mint: "text-mint",
-  danger: "text-danger",
-  magenta: "text-magenta",
-  dim: "text-muted-foreground",
-};
 
 const BTN =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm";
@@ -89,10 +82,9 @@ export default function APIGatewayVisualizer() {
   const throttleRef = useRef(true);
   const cacheOnRef = useRef(false);
   const ttlRef = useRef(300);
-  const logBoxRef = useRef<HTMLDivElement | null>(null);
 
   const pushLog = useCallback((text: string, tone: LogTone = "aws") => {
-    logRef.current = [...logRef.current, { id: logIdRef.current++, text, tone }].slice(-MAX_LOG);
+    logRef.current = [...logRef.current, { id: logIdRef.current++, text: `[${logTs()}] ${text}`, tone }].slice(-MAX_LOG);
   }, []);
 
   const flush = useCallback(() => {
@@ -196,11 +188,6 @@ export default function APIGatewayVisualizer() {
     return () => clearInterval(timer);
   }, [running, pushLog, flush]);
 
-  useEffect(() => {
-    const el = logBoxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [log]);
-
   const reset = () => {
     setRunning(false);
     reqRef.current = null;
@@ -293,21 +280,15 @@ export default function APIGatewayVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="GATE PROTOCOL // LIVE"
-        subtitle={`REQUEST LIFECYCLE · execute-api.us-east-1 · ${stage.toUpperCase()} STAGE`}
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={running ? "GATEWAY ONLINE — REQUESTS FLOWING" : "SYSTEM IDLE — PRESS RUN"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="API Gateway request lifecycle pipeline">
+      {/* MAIN GRID — flow view left, stats + controls rail right */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // REQUEST PIPELINE"
+          subtitle="CLIENT → 5 STAGES → 3 BACKENDS — THROTTLING + CACHING"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="API Gateway request lifecycle pipeline">
             {/* LINKS */}
             <FlowLink d="M13,50 C20,50 22,50 29,50" status={linkFlow ? "flowing" : "idle"} dotDuration={0.8} />
             <FlowLink
@@ -485,120 +466,105 @@ export default function APIGatewayVisualizer() {
               )}
             </AnimatePresence>
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="REQUESTS" value={String(requests)} tone="aws" />
-            <StatChip label="2XX" value={String(ok)} tone="mint" />
-            <StatChip label="4XX / 429" value={String(err)} tone="magenta" />
-            <StatChip label="P50 LATENCY" value={p50} tone="aws" />
-          </div>
-
-          {/* STAGE + TOGGLES */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <div className="flex items-center gap-1">
-              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground mr-1">
-                STAGE
-              </span>
-              {(["dev", "prod"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => switchStage(s)}
-                  aria-label={`Switch to ${s} stage`}
-                  className={`${BTN} ${stage === s ? "border-aws/70 text-aws box-glow" : "border-foreground/25 text-muted-foreground"}`}
-                >
-                  {s.toUpperCase()} {s === "dev" ? "/v1" : "/v2"}
-                </button>
-              ))}
+        {/* RIGHT RAIL — LIVE STATS + CONTROLS */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="REQUESTS" value={String(requests)} tone="aws" />
+              <StatChip label="2XX" value={String(ok)} tone="mint" />
+              <StatChip label="4XX / 429" value={String(err)} tone="magenta" />
+              <StatChip label="P50 LATENCY" value={p50} tone="aws" />
             </div>
-            <button
-              type="button"
-              onClick={toggleThrottle}
-              aria-label="Toggle throttle limit"
-              className={`${BTN} ${throttleOn ? "border-neon/60 text-neon" : "border-foreground/25 text-muted-foreground"}`}
-            >
-              <Gauge className="w-3 h-3" />
-              THROTTLE {throttleOn ? "10 RPS" : "OFF"}
-            </button>
-            <button
-              type="button"
-              onClick={toggleCache}
-              aria-label="Toggle stage caching"
-              className={`${BTN} ${cacheOn ? "border-mint/60 text-mint" : "border-foreground/25 text-muted-foreground"}`}
-            >
-              <Database className="w-3 h-3" />
-              CACHING {cacheOn ? "ON" : "OFF"}
-            </button>
-            <div className="flex items-center gap-2 px-2 py-1 border border-foreground/25 bg-black/50 backdrop-blur-md cyber-cut-sm">
-              <Timer className="w-3 h-3 text-muted-foreground" />
-              <input
-                type="range"
-                min={60}
-                max={3600}
-                step={60}
-                value={ttl}
-                onChange={(e) => changeTtl(Number(e.target.value))}
-                aria-label="Cache TTL seconds"
-                className="w-20 h-1 cursor-pointer"
-                style={{ accentColor: "#ff9900" }}
+          </GlassPanel>
+
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={running ? "GATEWAY ONLINE — REQUESTS FLOWING" : "SYSTEM IDLE — PRESS RUN"}
               />
-              <span className="text-[8px] font-bold text-aws tracking-wider">TTL {ttl}s</span>
-            </div>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={runBurst}
-              aria-label="Fire burst test of 12 rapid requests"
-              className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
-            >
-              <Zap className="w-3 h-3" />
-              BURST TEST ×12
-            </motion.button>
-          </div>
-
-          {/* CACHE PROFILE LINE */}
-          <p className="text-[8px] uppercase tracking-[0.18em] text-muted-foreground/80 font-bold">
-            CACHE PROFILE{" "}
-            <span className="text-aws">
-              {stage.toUpperCase()} {stage === "dev" ? "0.3x" : "0.4x"}
-            </span>{" "}
-            · TTL {ttl}s · HITS <span className="text-mint">{cacheHits}</span> ·{" "}
-            {cacheOn ? "STAGE CACHE ARMED" : "STAGE CACHE OFF"}
-          </p>
-
-          {/* REQUEST INSPECTOR */}
-          <div className="glass-inset p-2">
-            <div className="flex items-center justify-between px-1 pb-1.5">
-              <span className="text-[8px] font-bold uppercase tracking-[0.22em] text-aws">
-                {"// REQUEST INSPECTOR"}
-              </span>
-              <span className="text-[7px] uppercase tracking-wider text-muted-foreground">
-                {stage.toUpperCase()} · {stage === "dev" ? "/v1" : "/v2"}
-              </span>
-            </div>
-            <div ref={logBoxRef} className="max-h-32 overflow-y-auto cyber-scroll px-1 flex flex-col gap-0.5">
-              <AnimatePresence initial={false}>
-                {log.map((l) => (
-                  <motion.p
-                    key={l.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className={`text-[8.5px] leading-snug tracking-wider font-bold whitespace-pre-wrap ${LOG_TONE_CLS[l.tone]}`}
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">STAGE</p>
+              <div className="flex flex-wrap gap-2">
+                {(["dev", "prod"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => switchStage(s)}
+                    aria-label={`Switch to ${s} stage`}
+                    className={`${BTN} ${stage === s ? "border-aws/70 text-aws box-glow" : "border-foreground/25 text-muted-foreground"}`}
                   >
-                    {l.text}
-                  </motion.p>
+                    {s.toUpperCase()} {s === "dev" ? "/v1" : "/v2"}
+                  </button>
                 ))}
-              </AnimatePresence>
-              {log.length === 0 && (
-                <p className="text-[8px] uppercase tracking-wider text-muted-foreground/60 py-2">
-                  AWAITING REQUESTS — PRESS RUN OR FIRE A BURST TEST
-                </p>
-              )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={toggleThrottle}
+                  aria-label="Toggle throttle limit"
+                  className={`${BTN} ${throttleOn ? "border-neon/60 text-neon" : "border-foreground/25 text-muted-foreground"}`}
+                >
+                  <Gauge className="w-3 h-3" />
+                  THROTTLE {throttleOn ? "10 RPS" : "OFF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleCache}
+                  aria-label="Toggle stage caching"
+                  className={`${BTN} ${cacheOn ? "border-mint/60 text-mint" : "border-foreground/25 text-muted-foreground"}`}
+                >
+                  <Database className="w-3 h-3" />
+                  CACHING {cacheOn ? "ON" : "OFF"}
+                </button>
+              </div>
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">CACHE TTL</p>
+              <div className="flex items-center gap-2 px-2 py-1 border border-foreground/25 bg-black/50 backdrop-blur-md cyber-cut-sm">
+                <Timer className="w-3 h-3 text-muted-foreground shrink-0" />
+                <input
+                  type="range"
+                  min={60}
+                  max={3600}
+                  step={60}
+                  value={ttl}
+                  onChange={(e) => changeTtl(Number(e.target.value))}
+                  aria-label="Cache TTL seconds"
+                  className="w-full h-1 cursor-pointer"
+                  style={{ accentColor: "#ff9900" }}
+                />
+                <span className="text-[8px] font-bold text-aws tracking-wider whitespace-nowrap">TTL {ttl}s</span>
+              </div>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.94 }}
+                onClick={runBurst}
+                aria-label="Fire burst test of 12 rapid requests"
+                className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
+              >
+                <Zap className="w-3 h-3" />
+                BURST TEST ×12
+              </motion.button>
+              <p className="text-[8px] uppercase tracking-[0.18em] text-muted-foreground/80 font-bold">
+                CACHE PROFILE{" "}
+                <span className="text-aws">
+                  {stage.toUpperCase()} {stage === "dev" ? "0.3x" : "0.4x"}
+                </span>{" "}
+                · TTL {ttl}s · HITS <span className="text-mint">{cacheHits}</span> ·{" "}
+                {cacheOn ? "STAGE CACHE ARMED" : "STAGE CACHE OFF"}
+              </p>
             </div>
-          </div>
+          </GlassPanel>
+        </div>
+      </div>
+
+      {/* REQUEST INSPECTOR — full width below the grid */}
+      <GlassPanel title="REQUEST INSPECTOR" className="!p-0" delay={0.18}>
+        <div className="p-3">
+          <AutoLog lines={log} emptyText="AWAITING REQUESTS — PRESS RUN OR FIRE A BURST TEST" />
         </div>
       </GlassPanel>
 

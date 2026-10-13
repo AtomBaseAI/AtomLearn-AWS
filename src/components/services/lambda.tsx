@@ -7,6 +7,7 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
+import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { APIGatewayIcon, LambdaIcon, S3Icon, SQSIcon, CloudWatchIcon } from "@/components/aws-icons";
 import { Flame, Gauge, Skull, Snowflake, Timer, Zap } from "lucide-react";
 
@@ -141,7 +142,7 @@ export default function LambdaVisualizer() {
   };
 
   const pushLog = (text: string, tone: LogTone) => {
-    setLogs((prev) => [...prev.slice(-36), { id: logIdRef.current++, text, tone }]);
+    setLogs((prev) => [...prev.slice(-36), { id: logIdRef.current++, text: `[${logTs()}] ${text}`, tone }]);
   };
 
   /* fire a single invocation (click a source, burst, or autopilot) */
@@ -315,20 +316,15 @@ export default function LambdaVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      <GlassPanel
-        title="PHANTOM COMPUTE // λ"
-        subtitle={`${coldMode ? "COLD START MODE — PROVISIONS A FRESH CONTAINER PER INVOKE" : "WARM POOL — IDLE CONTAINERS ARE REUSED"} · ${memory} MB`}
-        actions={
-          <SimControls
-            running={running}
-            onToggle={toggleRun}
-            onReset={reset}
-            status={running ? "LIVE — RANDOM EVENTS EVERY ~900MS" : "IDLE — PRESS RUN OR CLICK A SOURCE"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="Lambda event-driven invocation flow diagram">
+      {/* MAIN GRID — flow view left, stats + controls rail right */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // INVOCATION PIPELINE"
+          subtitle="4 EVENT SOURCES → λ EXECUTION → CLOUDWATCH / DLQ"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="Lambda event-driven invocation flow diagram">
             {/* LINKS — EVENT SOURCES → LAMBDA */}
             {SOURCES.map((s) => (
               <FlowLink
@@ -488,89 +484,97 @@ export default function LambdaVisualizer() {
               />
             ))}
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="INVOKES" value={String(invokes)} />
-            <StatChip label="ERRORS" value={String(errors)} tone="magenta" delay={0.05} />
-            <StatChip label="P50 DURATION" value={p50 === null ? "—" : `~${p50} MS`} tone="mint" delay={0.1} />
-            <StatChip label="THROTTLES" value={String(throttles)} tone={throttles > 0 ? "magenta" : "neutral"} delay={0.15} />
-          </div>
+        {/* RIGHT RAIL — LIVE STATS + CONTROLS */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="INVOKES" value={String(invokes)} />
+              <StatChip label="ERRORS" value={String(errors)} tone="magenta" delay={0.05} />
+              <StatChip label="P50 DURATION" value={p50 === null ? "—" : `~${p50} MS`} tone="mint" delay={0.1} />
+              <StatChip label="THROTTLES" value={String(throttles)} tone={throttles > 0 ? "magenta" : "neutral"} delay={0.15} />
+            </div>
+          </GlassPanel>
 
-          {/* INTERACTIVE CONTROLS */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                const v = !coldRef.current;
-                coldRef.current = v;
-                setColdMode(v);
-              }}
-              aria-label="Toggle cold start mode"
-              className={`flex items-center gap-1.5 ${BTN} ${coldMode ? "border-magenta/60 text-magenta" : "border-mint/60 text-mint"}`}
-            >
-              {coldMode ? <Snowflake className="w-3 h-3" /> : <Flame className="w-3 h-3" />}
-              {coldMode ? "COLD STARTS: ON" : "WARM POOL: REUSE"}
-            </button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={burst}
-              className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
-              aria-label="Fire a burst of six concurrent invocations"
-            >
-              <Zap className="w-3 h-3" />
-              BURST ×6
-            </motion.button>
-            <div className="flex items-center gap-2 border border-foreground/20 bg-black/50 px-2.5 py-1.5 backdrop-blur-md cyber-cut-sm">
-              <span className="text-[8px] font-bold tracking-[0.18em] text-muted-foreground">MEM</span>
-              <input
-                type="range"
-                min={128}
-                max={3008}
-                step={64}
-                value={memory}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  memRef.current = v;
-                  setMemory(v);
-                }}
-                className="w-24 cursor-pointer accent-[#ff9900]"
-                aria-label="Lambda memory size in megabytes"
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={toggleRun}
+                onReset={reset}
+                status={running ? "LIVE — RANDOM EVENTS EVERY ~900MS" : "IDLE — PRESS RUN OR CLICK A SOURCE"}
               />
-              <span className="text-[9px] font-extrabold tracking-wider text-aws">{memory} MB</span>
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">INVOCATION MODE</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const v = !coldRef.current;
+                    coldRef.current = v;
+                    setColdMode(v);
+                  }}
+                  aria-label="Toggle cold start mode"
+                  className={`flex items-center gap-1.5 ${BTN} ${coldMode ? "border-magenta/60 text-magenta" : "border-mint/60 text-mint"}`}
+                >
+                  {coldMode ? <Snowflake className="w-3 h-3" /> : <Flame className="w-3 h-3" />}
+                  {coldMode ? "COLD STARTS: ON" : "WARM POOL: REUSE"}
+                </button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={burst}
+                  className={`${BTN} border-danger/60 text-danger hover:bg-danger/10`}
+                  aria-label="Fire a burst of six concurrent invocations"
+                >
+                  <Zap className="w-3 h-3" />
+                  BURST ×6
+                </motion.button>
+              </div>
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">MEMORY SIZE</p>
+              <div className="flex items-center gap-2 w-full border border-foreground/20 bg-black/50 px-2.5 py-1.5 backdrop-blur-md cyber-cut-sm">
+                <span className="text-[8px] font-bold tracking-[0.18em] text-muted-foreground">MEM</span>
+                <input
+                  type="range"
+                  min={128}
+                  max={3008}
+                  step={64}
+                  value={memory}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    memRef.current = v;
+                    setMemory(v);
+                  }}
+                  className="w-full flex-1 cursor-pointer accent-[#ff9900]"
+                  aria-label="Lambda memory size in megabytes"
+                />
+                <span className="text-[9px] font-extrabold tracking-wider text-aws">{memory} MB</span>
+              </div>
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">RESERVED CONCURRENCY</p>
+              <div className="flex items-center gap-1.5 w-full border border-foreground/20 bg-black/50 px-2.5 py-1.5 backdrop-blur-md cyber-cut-sm">
+                <Gauge className="w-3 h-3 text-aws" />
+                <span className="text-[8px] font-bold tracking-[0.18em] text-muted-foreground">CONCURRENCY</span>
+                <span className="flex items-center gap-1">
+                  {[0, 1, 2, 3].map((i) => (
+                    <span
+                      key={i}
+                      className={`h-3.5 w-2.5 ${i < inFlight ? "bg-aws shadow-[0_0_6px_rgba(255,153,0,0.8)]" : "bg-foreground/15"}`}
+                      aria-hidden="true"
+                    />
+                  ))}
+                </span>
+                <span className={`text-[9px] font-extrabold ${inFlight >= 4 ? "text-danger" : "text-aws"}`}>{inFlight}/4</span>
+              </div>
             </div>
-            {/* CONCURRENCY GAUGE */}
-            <div className="flex items-center gap-1.5 border border-foreground/20 bg-black/50 px-2.5 py-1.5 backdrop-blur-md cyber-cut-sm">
-              <Gauge className="w-3 h-3 text-aws" />
-              <span className="text-[8px] font-bold tracking-[0.18em] text-muted-foreground">CONCURRENCY</span>
-              <span className="flex items-center gap-1">
-                {[0, 1, 2, 3].map((i) => (
-                  <span
-                    key={i}
-                    className={`h-3.5 w-2.5 ${i < inFlight ? "bg-aws shadow-[0_0_6px_rgba(255,153,0,0.8)]" : "bg-foreground/15"}`}
-                    aria-hidden="true"
-                  />
-                ))}
-              </span>
-              <span className={`text-[9px] font-extrabold ${inFlight >= 4 ? "text-danger" : "text-aws"}`}>{inFlight}/4</span>
-            </div>
-          </div>
+          </GlassPanel>
+        </div>
+      </div>
 
-          {/* EXECUTION LOG */}
-          <div className="glass-inset cyber-scroll max-h-24 overflow-y-auto p-2 text-[9px] leading-relaxed" aria-live="polite">
-            <AnimatePresence initial={false}>
-              {logs.slice(-14).map((l) => (
-                <motion.p key={l.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className={`${TONE_CLS[l.tone]} font-bold tracking-wider truncate`}>
-                  {l.text}
-                </motion.p>
-              ))}
-            </AnimatePresence>
-            {logs.length === 0 && (
-              <p className="text-muted-foreground/60 font-bold tracking-wider">{"//"} execution log empty — invoke something</p>
-            )}
-          </div>
+      {/* EXECUTION LOG — full width below the grid */}
+      <GlassPanel title="EXECUTION LOG" className="!p-0" delay={0.18}>
+        <div className="p-3">
+          <AutoLog lines={logs} tones={TONE_CLS} emptyText="// execution log empty — invoke something" />
         </div>
       </GlassPanel>
 

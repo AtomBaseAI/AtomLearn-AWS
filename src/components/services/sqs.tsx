@@ -127,21 +127,15 @@ export default function SQSVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="QUEUE SIMULATOR // LIVE"
-        subtitle={fifo ? "FIFO QUEUE — EXACTLY-ONCE, IN-ORDER" : "STANDARD QUEUE — AT-LEAST-ONCE, BEST-EFFORT ORDER"}
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={running ? "QUEUE ONLINE — MESSAGES FLOWING" : "SYSTEM IDLE — PRESS RUN"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          <FlowCanvas className="h-[440px] sm:h-[520px]" ariaLabel="SQS message flow diagram">
+      {/* MAIN GRID — animation left, rail right */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // MESSAGE PIPELINE"
+          subtitle="PRODUCERS → QUEUE → WORKERS — VISIBILITY TIMEOUT + DLQ REDRIVE"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="SQS message flow diagram">
             {/* LINKS */}
             <FlowLink d="M15,22 C32,22 32,34 44,34" status={prodActive ? "flowing" : "idle"} dotDuration={1.4} />
             <FlowLink d="M15,52 C32,52 32,38 44,38" status={prodActive ? "flowing" : "idle"} dotDuration={1.6} dotDelay={0.3} />
@@ -250,49 +244,85 @@ export default function SQSVisualizer() {
             />
             <FlowLabel x={56} y={60} tone="danger">VISIBILITY TIMEOUT EXPIRED ×3</FlowLabel>
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS + TOGGLES */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="IN FLIGHT" value={String(workers.filter(Boolean).length)} tone="mint" />
-            <StatChip label="QUEUE DEPTH" value={String(queue.length)} />
-            <StatChip label="PROCESSED" value={String(processed)} tone="mint" />
-            <StatChip label="DEAD-LETTERED" value={String(failed)} tone="magenta" />
-          </div>
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="IN FLIGHT" value={String(workers.filter(Boolean).length)} tone="mint" />
+              <StatChip label="QUEUE DEPTH" value={String(queue.length)} />
+              <StatChip label="PROCESSED" value={String(processed)} tone="mint" />
+              <StatChip label="DEAD-LETTERED" value={String(failed)} tone="magenta" />
+            </div>
+          </GlassPanel>
 
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setFifo((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm ${
-                fifo ? "border-magenta/60 text-magenta" : "border-aws/50 text-aws"
-              }`}
-            >
-              <Layers className="w-3 h-3" />
-              {fifo ? "FIFO MODE" : "STANDARD MODE"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setLongPolling((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm ${
-                longPolling ? "border-mint/60 text-mint" : "border-neon/60 text-neon"
-              }`}
-            >
-              <Timer className="w-3 h-3" />
-              {longPolling ? "LONG POLLING (20s)" : "SHORT POLLING"}
-            </button>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={injectPoison}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border border-danger/60 text-danger bg-black/50 backdrop-blur-md cyber-cut-sm hover:bg-danger/10"
-            >
-              <Skull className="w-3 h-3" />
-              INJECT POISON MSG
-            </motion.button>
-          </div>
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={running ? "QUEUE ONLINE — MESSAGES FLOWING" : "SYSTEM IDLE — PRESS RUN"}
+              />
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">QUEUE CONFIG</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFifo((v) => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm ${
+                    fifo ? "border-magenta/60 text-magenta" : "border-aws/50 text-aws"
+                  }`}
+                >
+                  <Layers className="w-3 h-3" />
+                  {fifo ? "FIFO MODE" : "STANDARD MODE"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLongPolling((v) => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm ${
+                    longPolling ? "border-mint/60 text-mint" : "border-neon/60 text-neon"
+                  }`}
+                >
+                  <Timer className="w-3 h-3" />
+                  {longPolling ? "LONG POLLING (20s)" : "SHORT POLLING"}
+                </button>
+              </div>
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">CHAOS ACTIONS</p>
+              <div className="flex flex-wrap gap-2">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={injectPoison}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border border-danger/60 text-danger bg-black/50 backdrop-blur-md cyber-cut-sm hover:bg-danger/10"
+                >
+                  <Skull className="w-3 h-3" />
+                  INJECT POISON MSG
+                </motion.button>
+              </div>
+            </div>
+          </GlassPanel>
+
+          <GlassPanel title="DLQ CONTENTS" className="!p-0" delay={0.15}>
+            <div className="p-3">
+              <div className="glass-inset p-2.5 max-h-40 overflow-y-auto cyber-scroll flex flex-col gap-1">
+                {dlq.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center gap-1.5 border border-danger/50 bg-danger/10 px-1.5 py-1 text-[7.5px] font-bold tracking-wider text-danger"
+                  >
+                    <span>MSG-{String(m.id).padStart(3, "0")}</span>
+                    <span className="ml-auto text-danger/70">×{m.receives} RECEIVES</span>
+                  </div>
+                ))}
+                {dlq.length === 0 && (
+                  <p className="text-[7.5px] uppercase tracking-wider text-muted-foreground">NO DEAD LETTERS — HEALTHY QUEUE</p>
+                )}
+              </div>
+            </div>
+          </GlassPanel>
         </div>
-      </GlassPanel>
+      </div>
 
       {/* KNOWLEDGE */}
       <div className="grid md:grid-cols-3 gap-3">

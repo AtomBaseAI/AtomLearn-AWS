@@ -7,6 +7,7 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
+import { AutoLog } from "@/components/shared/auto-log";
 import {
   CloudWatchIcon,
   EC2Icon,
@@ -231,7 +232,6 @@ export default function Containers() {
   const tickRef = useRef(0);
   const logIdRef = useRef(2);
   const logRef = useRef<LogLine[]>([BOOT_LINE]);
-  const logBoxRef = useRef<HTMLDivElement | null>(null);
 
   const pushLog = useCallback((text: string, tone: LogTone = "aws") => {
     logIdRef.current += 1;
@@ -506,12 +506,6 @@ export default function Containers() {
     return () => clearInterval(timer);
   }, [running, orch, launch, desired, asgOn, pushLog, flush, spawnTask]);
 
-  /* auto-scroll the orchestrator log */
-  useEffect(() => {
-    const el = logBoxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [log]);
-
   /* ------------------------------ actions ------------------------------ */
   const reset = () => {
     setRunning(false);
@@ -667,22 +661,16 @@ export default function Containers() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="ORCHESTRATOR // LIVE"
-        subtitle={`ECS · EKS · ECR — ${orch} AUTHORITY — ${launch} CAPACITY — IMAGE api:v${currentVer}`}
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={statusLine}
-          />
-        }
-      >
-        <div className="flex flex-col gap-3 p-3 sm:p-4">
+      {/* MAIN GRID — flow view left, live stats + controls rail right */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // CONTAINER PIPELINE"
+          subtitle="ECR → SCHEDULER → ALB → CLOUDWATCH TARGET TRACKING"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
           <FlowCanvas
-            className="h-[440px] sm:h-[540px]"
+            className="h-[440px] sm:h-[540px] lg:h-[560px]"
             ariaLabel="ECS EKS ECR container orchestration flow diagram"
           >
             {/* HEADER CHIP */}
@@ -883,7 +871,7 @@ export default function Containers() {
               className="absolute z-10 -translate-x-1/2"
               style={{ left: "62%", top: "24%" }}
             >
-              <div className={`glass cyber-cut w-[200px] p-2 sm:w-[280px] ${clusterBorder}`}>
+              <div className={`glass cyber-cut w-[200px] p-2 sm:w-[240px] ${clusterBorder}`}>
                 {/* header */}
                 <div className="flex items-center justify-between gap-1 pb-1">
                   <span className="flex min-w-0 items-center gap-1 text-[7.5px] font-extrabold tracking-[0.12em] text-aws">
@@ -1019,189 +1007,177 @@ export default function Containers() {
               </div>
             </motion.div>
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <StatChip
-              label={`${orch === "EKS" ? "PODS" : "TASKS"} RUNNING`}
-              value={`${healthyCount}/${target}`}
-              tone={healthyCount === target && healthyCount > 0 ? "mint" : "aws"}
-            />
-            <StatChip
-              label="CLUSTER CPU"
-              value={`${clusterCpu}%`}
-              tone={clusterCpu > CPU_HIGH ? "magenta" : "mint"}
-            />
-            <StatChip
-              label="IMAGE"
-              value={deployActive ? `v${currentVer}→v${deployVer}` : `api:v${currentVer}`}
-            />
-            <StatChip label="DEPLOYS" value={`${deploys}`} tone="mint" />
-          </div>
-
-          {/* CONTROLS */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            {/* ORCHESTRATOR */}
-            <div
-              role="group"
-              aria-label="Orchestrator"
-              className="flex items-center gap-1.5 border border-foreground/25 bg-black/50 px-2 py-1 backdrop-blur-md cyber-cut-sm"
-            >
-              <span className="text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                ORCH
-              </span>
-              {(["ECS", "EKS"] as const).map((o) => (
-                <button
-                  key={o}
-                  type="button"
-                  onClick={() => setOrchestrator(o)}
-                  aria-pressed={orch === o}
-                  aria-label={`Switch orchestrator to ${o}`}
-                  className={`flex items-center gap-1 border px-2 py-0.5 text-[9px] font-bold ${
-                    orch === o
-                      ? o === "EKS"
-                        ? "border-magenta/70 bg-magenta/10 text-magenta"
-                        : "border-aws/70 bg-aws/10 text-aws"
-                      : "border-foreground/25 text-muted-foreground hover:text-aws"
-                  }`}
-                >
-                  {o === "ECS" ? <ECSIcon className="w-2.5 h-2.5" /> : <EKSIcon className="w-2.5 h-2.5" />}
-                  {o}
-                </button>
-              ))}
+        {/* RIGHT RAIL — live stats + controls */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip
+                label={`${orch === "EKS" ? "PODS" : "TASKS"} RUNNING`}
+                value={`${healthyCount}/${target}`}
+                tone={healthyCount === target && healthyCount > 0 ? "mint" : "aws"}
+              />
+              <StatChip
+                label="CLUSTER CPU"
+                value={`${clusterCpu}%`}
+                tone={clusterCpu > CPU_HIGH ? "magenta" : "mint"}
+              />
+              <StatChip
+                label="IMAGE"
+                value={deployActive ? `v${currentVer}→v${deployVer}` : `api:v${currentVer}`}
+              />
+              <StatChip label="DEPLOYS" value={`${deploys}`} tone="mint" />
             </div>
+          </GlassPanel>
 
-            {/* LAUNCH TYPE */}
-            <button
-              type="button"
-              onClick={toggleLaunch}
-              aria-pressed={launch === "FARGATE"}
-              aria-label="Toggle launch type between EC2 and Fargate"
-              className={`${BTN_BASE} ${launch === "FARGATE" ? "border-mint/60 text-mint" : "border-aws/50 text-aws"}`}
-            >
-              <Container className="w-3 h-3" />
-              LAUNCH: {launch}
-            </button>
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={statusLine}
+              />
 
-            {/* DESIRED COUNT */}
-            <div
-              role="group"
-              aria-label="Desired task count"
-              className="flex items-center gap-1.5 border border-foreground/25 bg-black/50 px-2 py-1 backdrop-blur-md cyber-cut-sm"
-            >
-              <span className="text-[8px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                DESIRED
-              </span>
-              {[2, 4, 6].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => applyDesired(n)}
-                  aria-pressed={desired === n}
-                  aria-label={`Set desired count to ${n}`}
-                  className={`border px-2 py-0.5 text-[9px] font-bold ${
-                    desired === n
-                      ? "border-aws/70 bg-aws/10 text-aws"
-                      : "border-foreground/25 text-muted-foreground hover:text-aws"
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-
-            {/* AUTOSCALING */}
-            <button
-              type="button"
-              onClick={toggleAsg}
-              aria-pressed={asgOn}
-              aria-label="Toggle target-tracking autoscaling"
-              className={`${BTN_BASE} ${
-                asgOn ? "border-mint/60 text-mint" : "border-foreground/20 text-muted-foreground"
-              }`}
-            >
-              <TrendingUp className="w-3 h-3" />
-              AUTOSCALING {asgOn ? "ON" : "OFF"}
-            </button>
-
-            {/* DEPLOY NEW IMAGE */}
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={triggerDeploy}
-              disabled={deployActive}
-              aria-label="Deploy a new image version with a rolling update"
-              className={`${BTN_BASE} border-neon/60 text-neon hover:bg-neon/10 disabled:opacity-40`}
-            >
-              <Rocket className="w-3 h-3" />
-              {deployActive ? `DEPLOYING v${deployVer}` : "DEPLOY NEW IMAGE"}
-            </motion.button>
-
-            {/* INJECT TRAFFIC SPIKE */}
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={injectSpike}
-              aria-label="Inject a traffic spike"
-              className={`${BTN_BASE} border-magenta/60 text-magenta hover:bg-magenta/10`}
-            >
-              <Zap className="w-3 h-3" />
-              TRAFFIC SPIKE
-            </motion.button>
-
-            {/* KILL RANDOM TASK */}
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={killRandom}
-              aria-label="Kill a random running task"
-              className={`${BTN_BASE} border-danger/60 text-danger hover:bg-danger/10`}
-            >
-              <Skull className="w-3 h-3" />
-              KILL TASK
-            </motion.button>
-          </div>
-
-          {/* ORCHESTRATOR LOG */}
-          <div className="glass-inset p-2">
-            <div className="flex items-center justify-between px-1 pb-1.5">
-              <span className="text-[8px] font-bold uppercase tracking-[0.22em] text-aws">
-                ORCHESTRATOR LOG {"//"} LIVE
-              </span>
-              <span className="text-[7px] uppercase tracking-wider text-muted-foreground">
-                {orch} · {launch} · TICK {String(tickCount).padStart(3, "0")}
-              </span>
-            </div>
-            <div
-              ref={logBoxRef}
-              role="status"
-              aria-label="Orchestrator event log"
-              className="cyber-scroll flex max-h-40 flex-col gap-0.5 overflow-y-auto p-2"
-            >
-              <AnimatePresence initial={false}>
-                {log.map((l) => (
-                  <motion.p
-                    key={l.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className={`whitespace-pre-wrap font-mono text-[8px] font-bold leading-snug tracking-wider ${LOG_TONE_CLS[l.tone]}`}
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                ORCHESTRATOR
+              </p>
+              <div
+                role="group"
+                aria-label="Orchestrator"
+                className="flex w-full items-center gap-1.5 border border-foreground/25 bg-black/50 px-2 py-1 backdrop-blur-md cyber-cut-sm"
+              >
+                {(["ECS", "EKS"] as const).map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => setOrchestrator(o)}
+                    aria-pressed={orch === o}
+                    aria-label={`Switch orchestrator to ${o}`}
+                    className={`flex items-center gap-1 border px-2 py-0.5 text-[9px] font-bold ${
+                      orch === o
+                        ? o === "EKS"
+                          ? "border-magenta/70 bg-magenta/10 text-magenta"
+                          : "border-aws/70 bg-aws/10 text-aws"
+                        : "border-foreground/25 text-muted-foreground hover:text-aws"
+                    }`}
                   >
-                    {l.text}
-                  </motion.p>
+                    {o === "ECS" ? <ECSIcon className="w-2.5 h-2.5" /> : <EKSIcon className="w-2.5 h-2.5" />}
+                    {o}
+                  </button>
                 ))}
-              </AnimatePresence>
-              {log.length === 0 && (
-                <p className="py-1 text-[8px] uppercase tracking-wider text-muted-foreground/60">
-                  NO EVENTS YET — PRESS RUN TO START THE SCHEDULER
-                </p>
-              )}
+              </div>
+
+              <button
+                type="button"
+                onClick={toggleLaunch}
+                aria-pressed={launch === "FARGATE"}
+                aria-label="Toggle launch type between EC2 and Fargate"
+                className={`${BTN_BASE} ${launch === "FARGATE" ? "border-mint/60 text-mint" : "border-aws/50 text-aws"}`}
+              >
+                <Container className="w-3 h-3" />
+                LAUNCH: {launch}
+              </button>
+
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                DESIRED COUNT
+              </p>
+              <div
+                role="group"
+                aria-label="Desired task count"
+                className="grid w-full grid-cols-3 gap-1.5 border border-foreground/25 bg-black/50 px-2 py-1 backdrop-blur-md cyber-cut-sm"
+              >
+                {[2, 4, 6].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => applyDesired(n)}
+                    aria-pressed={desired === n}
+                    aria-label={`Set desired count to ${n}`}
+                    className={`border px-2 py-0.5 text-[9px] font-bold ${
+                      desired === n
+                        ? "border-aws/70 bg-aws/10 text-aws"
+                        : "border-foreground/25 text-muted-foreground hover:text-aws"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={toggleAsg}
+                aria-pressed={asgOn}
+                aria-label="Toggle target-tracking autoscaling"
+                className={`${BTN_BASE} ${
+                  asgOn ? "border-mint/60 text-mint" : "border-foreground/20 text-muted-foreground"
+                }`}
+              >
+                <TrendingUp className="w-3 h-3" />
+                AUTOSCALING {asgOn ? "ON" : "OFF"}
+              </button>
+
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                CHAOS & DEPLOY
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={triggerDeploy}
+                  disabled={deployActive}
+                  aria-label="Deploy a new image version with a rolling update"
+                  className={`${BTN_BASE} border-neon/60 text-neon hover:bg-neon/10 disabled:opacity-40`}
+                >
+                  <Rocket className="w-3 h-3" />
+                  {deployActive ? `DEPLOYING v${deployVer}` : "DEPLOY NEW IMAGE"}
+                </motion.button>
+
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={injectSpike}
+                  aria-label="Inject a traffic spike"
+                  className={`${BTN_BASE} border-magenta/60 text-magenta hover:bg-magenta/10`}
+                >
+                  <Zap className="w-3 h-3" />
+                  TRAFFIC SPIKE
+                </motion.button>
+
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={killRandom}
+                  aria-label="Kill a random running task"
+                  className={`${BTN_BASE} border-danger/60 text-danger hover:bg-danger/10`}
+                >
+                  <Skull className="w-3 h-3" />
+                  KILL TASK
+                </motion.button>
+              </div>
             </div>
-          </div>
+          </GlassPanel>
+        </div>
+      </div>
+
+      {/* ORCHESTRATOR LOG — full width below the main grid */}
+      <GlassPanel
+        title="ORCHESTRATOR LOG // LIVE"
+        subtitle={`${orch} · ${launch} · TICK ${String(tickCount).padStart(3, "0")}`}
+        className="!p-0"
+        delay={0.18}
+      >
+        <div className="p-3">
+          <AutoLog
+            lines={log}
+            emptyText="NO EVENTS YET — PRESS RUN TO START THE SCHEDULER"
+            tones={LOG_TONE_CLS}
+          />
         </div>
       </GlassPanel>
 

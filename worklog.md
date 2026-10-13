@@ -370,3 +370,210 @@ Work Log:
 
 Stage Summary:
 - The AZ use-case tab is now a self-running cinematic showcase: scripted failovers fire automatically with shockwaves, rack LED flicker, live load redistribution, replication mesh degradation, health-check flips and a UTC scenario log — while every control (stepper jump, per-AZ fail/restore, auto demo) stays fully manual-overrideable.
+---
+Task ID: 16-a
+Agent: general-purpose
+Task: Re-layout sqs/sns/s3 — controls to top control deck, stats+logs to right rail (global-infrastructure style)
+
+Work Log:
+- sqs.tsx: FIFO/STANDARD + LONG/SHORT POLLING + INJECT POISON MSG buttons moved into a top CONTROL DECK GlassPanel ("QUEUE SIMULATOR // LIVE", className="!p-0", inner px-3 sm:px-4 py-3 flex-wrap row, exact button classNames kept). FlowCanvas moved into its own "FLOW VIEW // MESSAGE PIPELINE" GlassPanel (subtitle "PRODUCERS → QUEUE → WORKERS — VISIBILITY TIMEOUT + DLQ REDRIVE", h-[440px] sm:h-[540px] lg:h-[560px], children byte-identical). 4 StatChips moved into a 320px RIGHT RAIL "LIVE STATS" panel (grid-cols-2, dropped sm:grid-cols-4). ADDED new REQUIRED rail panel "DLQ CONTENTS" (delay 0.15) below stats: glass-inset max-h-40 cyber-scroll list rendering dlq state as danger chips "MSG-### ×N RECEIVES" + empty state "NO DEAD LETTERS — HEALTHY QUEUE". Knowledge grid untouched.
+- sns.tsx: PUBLISH EVENT + MSG ATTRS + FILTER POLICY buttons + filter-policy legend <p> moved into top CONTROL DECK GlassPanel ("SIGNAL BURST // LIVE"). FlowCanvas moved into "FLOW VIEW // TOPIC FAN-OUT" GlassPanel (subtitle "1 PUBLISHER → SNS TOPIC → 5 SUBSCRIBERS", h-[440px] sm:h-[540px] lg:h-[560px], children byte-identical). StatChips → rail "LIVE STATS". DELIVERY LOG glass-inset block moved from below-canvas into rail as its own "DELIVERY STREAM" GlassPanel (delay 0.15, subtitle "orders-topic · 5 SUBSCRIPTIONS" preserved from the deleted inner header row's right side; logBoxRef auto-scroll + AnimatePresence + all log lines + empty state kept byte-identical). Knowledge grid untouched.
+- s3.tsx: VERSIONING + REPLICATION + PUT OBJECT controls moved into top CONTROL DECK GlassPanel ("INFINITE VAULT // LIVE", exact classNames/aria-labels). FlowCanvas moved into "FLOW VIEW // OBJECT LIFECYCLE" GlassPanel (subtitle "UPLOADS → TIERING → CROSS-REGION REPLICATION", h-[440px] sm:h-[540px] lg:h-[560px]); the STORAGE CLASS PRICING overlay was lifted OUT of FlowCanvas children per per-file notes and re-homed as rail GlassPanel "STORAGE CLASS PRICING // $ PER GB-MONTH" (animated proportional bars kept byte-identical). StatChips → rail "LIVE STATS". ADDED new rail panel "RECENT OBJECTS" (delay 0.2): glass-inset max-h-40 cyber-scroll list from objects state (latest 8, tier-colored marker via TIER_META[tier].bar, key + v{ver} + tier) + empty state "NO OBJECTS — PRESS PUT OBJECT". Knowledge grid untouched.
+- No sim logic, state, refs, effects, timers, aria attributes or FlowCanvas inner JSX changed in any file; no imports added/removed (all still used). Did not touch shared/*, registry, page, global-infrastructure, infra-usecases.
+
+Stage Summary:
+- sqs/sns/s3 now follow the global-infrastructure layout: control deck on top, grid lg:grid-cols-[minmax(0,1fr)_320px] with FlowCanvas left and LIVE STATS + module rail panels (DLQ CONTENTS / DELIVERY STREAM / STORAGE CLASS PRICING + RECENT OBJECTS) stacked right, knowledge grid at bottom.
+- bun run lint → exit 0, 0 errors/warnings; bunx tsc --noEmit (filtered) → zero errors for the 3 files.
+- Worklog appended via single cat >> as required.
+---
+Task ID: 16-b
+Agent: general-purpose
+Task: Re-layout vpc/iam/elb — controls to top control deck, stats+logs to right rail (global-infrastructure style)
+
+Work Log:
+- vpc.tsx: moved FILTER ENGINE VIEW cluster (SG STATEFUL / NACL STATELESS buttons), NAT GATEWAY toggle and STEP TRACE button up into the "VOID NETWORK // LIVE" control deck (className="!p-0", inner px-3 sm:px-4 py-3 flex-wrap row, cluster label gets w-full); moved the 4 StatChips into a new right-rail GlassPanel "LIVE STATS" (grid-cols-2, tones/delays kept) and the hop-by-hop log into rail GlassPanel "PACKET TRACE — HOP-BY-HOP" (glass-inset scroll box, ref={logBoxRef}, aria-live kept; duplicated inner header row deleted). Added main grid lg:grid-cols-[minmax(0,1fr)_320px] with "FLOW VIEW // PACKET TRACER TOPOLOGY" panel; FlowCanvas children byte-identical, height class now h-[440px] sm:h-[540px] lg:h-[560px]. Knowledge grid untouched.
+- iam.tsx: moved SIMULATION CONTROLS cluster (MFA ENROLLED toggle, ACTION UNDER TEST selector buttons, EVALUATE NOW) into the "ACCESS MATRIX // LIVE" control deck (both uppercase labels kept, w-full added); moved 4 StatChips into rail "LIVE STATS" and the decision log into rail GlassPanel "ENGINE TRACE — DECISION LOG" (ref/aria-live kept, duplicated inner header deleted). Main grid + "FLOW VIEW // POLICY EVALUATION" panel added; canvas (clickable principals, engine stack, verdict) untouched; removed now-unused Terminal lucide import.
+- elb.tsx: moved PATH RULES toggle, KILL TARGET button and health-check hint span into the "TRAFFIC SPLITTER // LIVE" control deck (BTN const reused verbatim); moved 4 StatChips into rail "LIVE STATS"; ADDED required rail panel "TARGET HEALTH" (delay 0.15): glass-inset scroll list with one row per target from existing render state — targets (tg-web-01..04) always, imgTargets (tg-img-01/02) when pathRules on, status chips HEALTHY mint / UNHEALTHY danger / RECOVERING amber→neon. Main grid + "FLOW VIEW // TRAFFIC SPLITTER" panel added; FlowCanvas children untouched.
+
+Stage Summary:
+- All 3 modules now follow the global-infrastructure layout: control deck on top, animation left + 320px right rail (LIVE STATS + log/health panel), knowledge grid unchanged at bottom.
+- Zero sim-logic/state/ref/effect changes; all aria labels, aria-pressed, motion props, AnimatePresence and logBoxRef auto-scroll kept; FlowCanvas children byte-identical except canvas height class.
+- Imports pruned where they became unused (iam: Terminal). No new dependencies.
+- bun run lint: clean (0 errors/warnings). bunx tsc --noEmit (filtered): zero errors for vpc/iam/elb.
+- Deviation note: theme has no `amber` token; RECOVERING chip uses the theme's amber-equivalent `neon` (#ffb347) as specified tone.
+---
+Task ID: 16-c
+Agent: general-purpose
+Task: Re-layout api-gateway/cloudfront/lambda — controls to top control deck, stats+logs to right rail (global-infrastructure style)
+
+Work Log:
+- api-gateway.tsx: GlassPanel "GATE PROTOCOL // LIVE" kept (title/subtitle/actions={SimControls}) but became a !p-0 CONTROL DECK — moved up from below the canvas: STAGE dev/prod selector (small uppercase "STAGE" cluster label now a w-full <p> tracking-[0.25em] before its cluster), THROTTLE toggle, CACHING toggle, TTL slider (wrapped in min-w-[200px] flex-1), BURST TEST ×12 button, plus CACHE PROFILE readout line (w-full, last row of deck). Main grid lg:grid-cols-[minmax(0,1fr)_320px] items-start: left GlassPanel "FLOW VIEW // REQUEST PIPELINE" (subtitle "CLIENT → 5 STAGES → 3 BACKENDS — THROTTLING + CACHING", !p-0 overflow-hidden, delay 0.05) wrapping the byte-identical FlowCanvas (only height class → h-[440px] sm:h-[540px] lg:h-[560px]); right rail = "LIVE STATS" GlassPanel (p-3 grid grid-cols-2, 4 StatChips, tone/delay props kept, dropped sm:grid-cols-4) + new "REQUEST INSPECTOR" GlassPanel (delay 0.15) holding the log div byte-identical (logBoxRef auto-scroll + AnimatePresence + LOG_TONE_CLS lines + empty state), duplicated inner glass-inset header row deleted. Knowledge grid untouched.
+- cloudfront.tsx: "EDGE MIRROR // LIVE" panel → !p-0 CONTROL DECK with TTL slider (min-w-[200px] flex-1) + INVALIDATION button + LOWER TTL hint line (w-full) moved up from below the canvas. Main grid: left "FLOW VIEW // EDGE CACHE RACE" (subtitle "3 USERS → 600+ POP EDGES → S3 ORIGIN — HIT VS MISS") around untouched FlowCanvas; right rail stacked three panels: "LIVE STATS" (4 StatChips) → "LATENCY READOUT" GlassPanel (animated AVG HIT/AVG MISS bars + race summary moved out of the old md:grid-cols-5 row; inner markup byte-identical) → "EDGE LOG" GlassPanel (logBoxRef + AnimatePresence lines kept, duplicated "// EDGE LOG / 600+ POPS WORLDWIDE" header row deleted). Knowledge grid untouched.
+- lambda.tsx: "PHANTOM COMPUTE // λ" panel → !p-0 CONTROL DECK with COLD/WARM toggle, BURST ×6 button, MEM slider (min-w-[200px] flex-1) and CONCURRENCY gauge moved up from below the canvas. Main grid: left "FLOW VIEW // INVOCATION PIPELINE" (subtitle "4 EVENT SOURCES → λ EXECUTION → CLOUDWATCH / DLQ") around untouched FlowCanvas (clickable event-source nodes untouched); right rail = "LIVE STATS" GlassPanel (INVOKES/ERRORS/P50 DURATION/THROTTLES chips) + "EXECUTION LOG" GlassPanel wrapping the byte-identical glass-inset scroll container (aria-live="polite" + AnimatePresence + {"//"} empty state kept). Knowledge grid untouched.
+- All three: zero sim logic/state/ref/effect/timer changes; zero shared/*, registry, page, global-infrastructure changes; imports unchanged (all still used). Deviations (cosmetic only): added w-full to trailing readout/hint lines so flex-wrap decks break deterministically; rail log panels get a p-2 wrapper for the padding the old glass-inset provided.
+
+Stage Summary:
+- 3 modules now follow the global-infrastructure layout: ① control deck on top (existing GlassPanel title/subtitle/actions), ② FlowCanvas as main left area at h-[440px] sm:h-[540px] lg:h-[560px] in a lg:grid-cols-[minmax(0,1fr)_320px] grid, ③ right rail with LIVE STATS + per-module log/trace panels (REQUEST INSPECTOR / LATENCY READOUT + EDGE LOG / EXECUTION LOG), ④ knowledge grids byte-identical. bun run lint clean (0 errors/warnings); bunx tsc --noEmit clean for all 3 files. Verified single occurrences of every relocated control and every logBoxRef/aria-live (no duplication).
+---
+Task ID: 16-e
+Agent: general-purpose
+Task: Re-layout cloudwatch/containers — controls to top control deck, stats+logs to right rail (global-infrastructure style)
+
+Work Log:
+- cloudwatch.tsx: control deck (top) = existing "SIGNAL SCOPE // LIVE" GlassPanel with SimControls + all controls relocated from below the canvas (THRESHOLD 60/75/90 cluster — label now a full-width uppercase <p>, SNS NOTIFY toggle, SCALING ACTION toggle, INJECT CPU SPIKE, INJECT 5XX BURST), className="!p-0". Main grid lg:grid-cols-[minmax(0,1fr)_320px]: left = new "FLOW VIEW // METRICS PIPELINE" GlassPanel wrapping the byte-identical FlowCanvas (height +lg:h-[560px]); right rail = "LIVE STATS" GlassPanel (p-3 grid-cols-2, 4 StatChips, tones kept) + "ALARM HISTORY // LIVE" GlassPanel (subtitle "AWS/EC2 · CPUUtilization" from the deleted inner header row; scroll box w/ histBoxRef + AnimatePresence + LOG_TONE_CLS lines kept byte-identical inside a p-2 wrapper). Knowledge grid untouched. No sim/state/ref/effect changes; no imports removed.
+- containers.tsx: control deck = existing "ORCHESTRATOR // LIVE" GlassPanel + SimControls + controls moved up (ORCHESTRATOR ECS/EKS role=group — inner "ORCH" span hoisted to full-width <p>, aria-label kept; LAUNCH toggle; DESIRED 2/4/6 role=group — "DESIRED" span hoisted to <p> "DESIRED COUNT"; AUTOSCALING; DEPLOY NEW IMAGE; TRAFFIC SPIKE; KILL TASK), className="!p-0". Main grid lg:grid-cols-[minmax(0,1fr)_300px]: left = "FLOW VIEW // CONTAINER PIPELINE" GlassPanel around byte-identical FlowCanvas (height +lg:h-[560px]); right rail = "LIVE STATS" (4 StatChips) + "ORCHESTRATOR LOG // LIVE" GlassPanel (subtitle `${orch} · ${launch} · TICK …` from deleted header row; logBoxRef + role="status" + aria-label + p-2 scroll box kept). Knowledge grid untouched.
+- Deviation (documented): containers cluster boundary overlay had hard-coded w-[280px] at left 62% (overflows canvas when narrower than ~368px). Per contract, rail narrowed to 300px AND box relaxed sm:w-[280px] → sm:w-[240px] (threshold drops to ~316px; task chips truncate, layout unaffected).
+
+Stage Summary:
+- Both modules now follow the global-infrastructure layout: controls on top, FlowCanvas main-left, LIVE STATS + log rail right (320px cloudwatch / 300px containers), knowledge grid unchanged.
+- FlowCanvas children verified byte-identical via git diff (only the sanctioned containers cluster width relax + height class changed).
+- bun run lint: clean (0 errors/warnings). bunx tsc --noEmit: zero errors for both files.
+---
+Task ID: 16-d
+Agent: general-purpose
+Task: Re-layout ec2/rds — controls to top, stats+logs to right rail (global-infrastructure style)
+
+Work Log:
+- src/components/services/ec2.tsx (TWO stacked GlassPanels, INLINE variant applied to each, both got className="!p-0"): PANEL A "LIFECYCLE STATE MACHINE" — START/STOP/REBOOT/TERMINATE motion buttons + AnimatePresence-wrapped REVIVE INSTANCE moved from below the FlowCanvas into a top control strip (px-3 sm:px-4 py-2.5 flex flex-wrap items-center gap-2 border-b border-foreground/10, exact button classNames/motion props/aria-labels kept); new grid p-3 sm:p-4 lg:grid-cols-[minmax(0,1fr)_300px] gap-3 items-start with FlowCanvas (h-[440px] sm:h-[540px], all children byte-identical) left and right rail (flex flex-col gap-3 min-w-0) holding STATE LOG (glass-inset cyber-scroll max-h-28 aria-live kept byte-identical incl. {"//"} empty state) then LIFECYCLE STATS restacked as glass-inset p-3 grid grid-cols-2 gap-2 (dropped sm:grid-cols-4). PANEL B "AUTO SCALING GROUP SIM" — control strip now holds CPU LOAD slider+AVG bar (wrapped min-w-[240px] flex-1) and the 6-button INSTANCE FAMILY GRID (wrapped min-w-[320px] flex-[2], grid-cols-3 sm:grid-cols-6 kept); grid lg:grid-cols-[minmax(0,1fr)_300px] with dashed ASG boundary + AnimatePresence instance chips as the left visual (byte-identical) and right rail holding ASG STATS (glass-inset p-3 grid-cols-2), LATEST POLICY EVENT AnimatePresence ticker, and FAMILY DETAIL STRIP (info readout → rail, judgment call). Knowledge callouts untouched; zero sim-logic/state/ref/effect changes.
+- src/components/services/rds.tsx (standard variant): 1) CONTROL DECK — existing "SYNC SHADOW // LIVE" GlassPanel kept title/subtitle/actions={SimControls} + className="!p-0"; MULTI-AZ toggle, RDS PROXY toggle, REPLICAS 0/1/2 role="group" selector, WRITE STORM, FAILOVER, AnimatePresence RESTORE WRITER moved up from below the canvas into px-3 sm:px-4 py-3 flex flex-wrap items-center gap-2 (exact classNames + aria-pressed/aria-label preserved). 2) MAIN GRID — grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start; new FLOW VIEW // DATABASE ENGINE panel (!p-0 overflow-hidden delay 0.05, subtitle "MULTI-AZ STANDBY + READ REPLICA — WRITES · READS · FAILOVER") wrapping the byte-identical FlowCanvas, height class only changed to h-[440px] sm:h-[540px] lg:h-[560px]; right rail (flex flex-col gap-4 min-w-0) = LIVE STATS panel (p-3 grid grid-cols-2 gap-2; WRITES/READS/MAX REPLICA LAG/FAILOVERS chips unchanged, dropped sm:grid-cols-4) + ENGINE LOG // LIVE panel (!p-0 delay 0.15) whose scroll div keeps ref={logBoxRef}, gained aria-live="polite", classes glass-inset cyber-cut-sm p-2.5 max-h-[300px] lg:max-h-[420px] overflow-y-auto cyber-scroll flex flex-col gap-0.5 (auto-scroll effect untouched); old glass-inset wrapper + duplicated inner header row (SYNC STANDBY · TICK_MS) deleted per contract. 3) KNOWLEDGE grid byte-identical. No imports added/removed (TICK_MS still used by the tick interval); refs-as-source-of-truth pattern untouched.
+
+Stage Summary:
+- ec2.tsx + rds.tsx now follow the global-infrastructure layout: interactive controls in a top strip/deck above the visual, FlowCanvas/ASG visual as the main left area, stats + logs (+ ASG policy ticker, family detail) in a right-side rail (300px ec2 / 320px rds), knowledge callouts unchanged at bottom.
+- Pure JSX re-layout: sim logic, state, refs, effects, timers, FlowCanvas children, motion props, aria attributes and AnimatePresence wrappers all preserved byte-identical (only relocated + indentation); ec2 STATE LOG classes kept as-is (max-h-28) since the ec2 template did not specify a log height.
+- Verification: `bun run lint` → clean (0 errors/warnings); `bunx tsc --noEmit` (filtered) → zero errors for both files. No other files touched.
+---
+Task ID: 16 (orchestrator)
+Agent: main (orchestrator)
+Task: "similar to GLOBAL INFRASTRUCTURE, move all other service controls(top) & logs, stats to right side of the animation in all other services" — re-layout all 13 service modules.
+
+Work Log:
+- Defined the shared re-layout contract (mirroring global-infrastructure.tsx): ① CONTROL DECK panel on top = existing module title card (title/subtitle/actions SimControls kept, className !p-0) with EVERY below-canvas control relocated into a px-3 sm:px-4 py-3 flex-wrap strip (exact classNames/aria preserved; cluster labels become w-full uppercase <p>; sliders wrapped min-w flex-1); ② main grid lg:grid-cols-[minmax(0,1fr)_320px] items-start with the animation in a new "FLOW VIEW // <name>" panel (FlowCanvas + children byte-identical, height h-[440px] sm:h-[540px] lg:h-[560px]) and a right rail stacking LIVE STATS (p-3 grid grid-cols-2 StatChips) + existing log/trace/readout GlassPanels (auto-scroll refs + aria-live kept, duplicated inner headers dropped); ③ knowledge grids untouched. Pure JSX re-layout — zero sim-logic/state/ref/effect changes.
+- Dispatched 5 parallel agents on disjoint file sets: 16-a (sqs, sns, s3), 16-b (vpc, iam, elb), 16-c (api-gateway, cloudfront, lambda), 16-d (ec2 inline-variant both panels, rds), 16-e (cloudwatch, containers with sanctioned 300px rail + sm:w-[240px] boundary relax). All appended their own 16-x worklog sections (see above).
+- New rail panels where a module had no log: SQS "DLQ CONTENTS" (dlq state chips + healthy empty state), ELB "TARGET HEALTH" (per-target HEALTHY/UNHEALTHY/RECOVERING rows), S3 "RECENT OBJECTS" (last 8 keys + tier markers); secondary readouts moved into rails (S3 STORAGE CLASS PRICING, CloudFront LATENCY READOUT).
+- Verification (orchestrator): bun run lint → clean; bunx tsc --noEmit (filtered) → zero errors; Agent Browser E2E at 1440px — all 14 modules screenshotted and structurally verified (control deck above canvas, stats/logs in right rail; hotkey map 1=GLOBAL 2=IAM 3=S3 4=VPC 5=EC2 6=ELB 7=LAMBDA 8=APIGW 9=SNS 0=SQS -=CF ==RDS [=CW ]=Containers); interactivity spot-checks: Lambda RUN + source click → EXECUTION LOG populates; ELB RUN → REQUESTS SENT increments, KILL TARGET → UNHEALTHY row → auto-recovers 4/4; mobile 390px — ELB/SQS/Containers/EC2 scrollWidth=390, no horizontal overflow, rail stacks below canvas; console errors: none (only pre-existing THREE.Clock deprecation warnings); dev.log recent entries all 200s (transient fast-refresh full-reloads during the parallel-edit window are stale).
+- Screenshots: /home/z/shots/t16-{initial,lambda,apigw,sns,sqs,cloudfront,rds,iam,s3,vpc,ec2,ec2-panelb,elb,cloudwatch,containers,elb-mobile}.png.
+
+Stage Summary:
+- All 13 service modules now share the GLOBAL INFRASTRUCTURE layout language: controls in a top control deck, the flow animation as the main left area, and LIVE STATS + logs/traces/readouts stacked in a 320px right rail (300px for containers), collapsing to a single column on mobile.
+- No shared components, registry, page.tsx, or global-infrastructure.tsx changed; simulation engines untouched; lint + tsc clean; golden-path browser-verified on desktop and mobile.
+
+---
+Task ID: run-app
+Agent: main
+Task: Run the app and verify it works end-to-end
+
+Work Log:
+- Found no dev server running; started `bun run dev` in background (dev.log)
+- Server ready on port 3000 in 773ms (Next.js 16.1.3 Turbopack)
+- Agent Browser: opened http://localhost:3000, title "AWS | ATOM LEARN" OK
+- Captured desktop (1440px) screenshot: GLOBAL INFRASTRUCTURE renders with 3 tabs (GENERAL / REGIONS BEST USE CASE / AVAILABILITY ZONE USE CASE), stats, orbital view
+- Captured mobile (390px) screenshot: responsive layout OK, no overflow
+- Switched modules via sidebar: EC2, S3, RDS, CloudWatch, Containers — all render correctly
+- EC2 interactivity tested: START → RUN → state machine transitions STOPPED → PENDING → RUNNING confirmed
+- Containers module confirmed with restructured layout (controls top, LIVE STATS + ORCHESTRATOR LOG on right side of animation)
+- Checked agent-browser errors: none; dev.log shows clean GET / 200 responses
+
+Stage Summary:
+- App is running and fully functional on port 3000
+- All 14 modules render; core interactivity verified via Agent Browser
+- Screenshots saved: /home/z/shots/run-app-desktop.png, run-app-mobile.png, run-ec2.png, run-containers.png
+
+---
+Task ID: test-errors-run-app
+Agent: main
+Task: Test the app for errors and run it
+
+Work Log:
+- Dev server was down; restarted `bun run dev` (ready in 755ms, port 3000)
+- `bun run lint`: clean, zero warnings
+- `bunx tsc --noEmit`: found 1 project error — leftover src/lib/db.ts importing @prisma/client (prisma removed previously, file unused, no imports anywhere)
+- Removed leftovers: src/lib/db.ts, prisma/ folder, db/custom.db → project source now 0 TS errors (remaining 4 tsc lines all in skills/ + examples/ framework folders, not project code)
+- Agent Browser E2E sweep: opened /, cycled all 13 non-default modules (IAM→Containers) — zero page errors on every module
+- Only console output: harmless THREE.Clock deprecation warning
+- Interaction tests: AZ tab renders content ✅; NORTH AMERICA badge → AUTO-ROTATE OFF ✅; us-west-2 region → AZ detail + REGION UPLINK panel updated, globe focused ✅; EC2 START+RUN → state RUNNING, 2 transitions ✅; Containers RUN → 2/2 tasks, orchestrator log active ✅
+- dev.log: zero error/fail lines, all GET / 200; final curl HTTP 200
+
+Stage Summary:
+- App error-free and running on port 3000: lint clean, project TS clean (removed prisma leftovers), 14/14 modules browser-verified, all core interactions working
+- Screenshots: /home/z/shots/test-globe-region.png
+---
+Task ID: 17-b
+Agent: general-purpose
+Task: Restructure api-gateway/sns/cloudfront — controls to right rail below LIVE STATS, logs to full-width bottom AutoLog
+
+Work Log:
+- Read worklog + shared/auto-log.tsx contract; read all 3 target files to map existing deck controls, log plumbing (logBoxRef + auto-scroll useEffect, local LOG_TONE_CLS) and push helpers.
+- api-gateway.tsx: deleted top "GATE PROTOCOL // LIVE" CONTROL DECK; new right-rail CONTROLS panel (delay 0.12) below LIVE STATS holding SimControls + STAGE dev/prod buttons + THROTTLE/CACHING toggles + full-width TTL slider (input w-20→w-full) + BURST TEST ×12 + CACHE PROFILE readout line; all onClick/aria/active-colors preserved verbatim. REQUEST INSPECTOR moved below the grid full width (delay 0.18) as AutoLog lines={log} with original emptyText; removed old max-h-32 scroll container, logBoxRef + its auto-scroll useEffect, and now-unused local LOG_TONE_CLS const.
+- sns.tsx: deleted "SIGNAL BURST // LIVE" deck; rail CONTROLS (delay 0.12) holds SimControls + PUBLISH EVENT + MSG ATTRS/FILTER POLICY toggle + subscriber-attribute legend; DELIVERY STREAM (title + orders-topic·5 SUBSCRIPTIONS subtitle kept) moved full-width below grid as AutoLog; removed glass-inset/max-h-32 wrapper, logBoxRef + effect, local LOG_TONE_CLS.
+- cloudfront.tsx: deleted "EDGE MIRROR // LIVE" deck; rail order now LIVE STATS → CONTROLS (delay 0.12: SimControls + full-width TTL slider w-24→w-full + INVALIDATION /* button + LOWER TTL hint) → LATENCY READOUT (stays); EDGE LOG moved full-width below grid as AutoLog; removed logBoxRef + effect + local LOG_TONE_CLS.
+- Timestamps: added `[${logTs()}] ` prefix inside each file's single pushLog() helper (push time, useCallback-stable) — covers every push site incl. setTimeout callbacks (sns per-subscriber outcomes, api-gw burst, cf tick loop). Service data (HTTP path/status/latency/cache HIT, subscriber keys/status, edge location/TTL/invalidation id) untouched.
+- FlowCanvas internals (FlowNode/FlowLabel/AnimatePresence transient labels) and all sim logic/state machines/refs untouched; no exports renamed; button rows use flex flex-wrap gap-2, no fixed-width overflow classes introduced.
+- Verification: bunx tsc --noEmit | rg "services/(api-gateway|sns|cloudfront)" → empty; bun run lint → clean. Browser E2E (agent-browser): APIGW run+burst → timestamped 200/429 lines; SNS publish+filter toggle → timestamped delivered/skipped lines; CloudFront run+invalidation → timestamped HIT/MISS/cached lines; rail structure = LIVE STATS→CONTROLS(→LATENCY READOUT) confirmed via snapshots; mobile 390px scrollWidth=390 (no overflow); zero console/page errors.
+
+Stage Summary:
+- All 3 modules now follow the 17-x target layout: no top control deck; every interactive control lives in a right-rail CONTROLS panel directly below LIVE STATS (cloudfront keeps LATENCY READOUT after it); text logs render full-width below the grid via shared AutoLog (4-line pinned auto-scroll) with wall-clock timestamps pushed in pushLog; old manual scroll boxes/refs/local tone maps removed; lint + tsc clean, browser-verified desktop + 390px mobile.
+---
+Task ID: 17-c
+Agent: general-purpose
+Task: Restructure rds/cloudwatch/containers — controls to right rail below LIVE STATS, logs to full-width bottom AutoLog
+
+Work Log:
+- rds.tsx: deleted top CONTROL DECK GlassPanel ("SYNC SHADOW // LIVE" + SimControls in actions). Added rail GlassPanel "CONTROLS" (!p-0, delay 0.12) directly below LIVE STATS with SimControls (status line kept) + tiny labels ("TOPOLOGY & POOLING", "FAILOVER & LOAD") + all 6 relocated controls restacked for the 320px rail: MULTI-AZ toggle, RDS PROXY toggle, REPLICAS 0/1/2 role=group (kept inline REPLICAS span, now w-full), WRITE STORM, FAILOVER (dynamic label/disabled kept), AnimatePresence RESTORE WRITER — all onClick/aria/active-state classes byte-identical. ENGINE LOG // LIVE panel moved below the main grid full-width (delay 0.18) with AutoLog lines={log} emptyText kept tones={LOG_TONE_CLS}; deleted logBoxRef + auto-scroll useEffect + old max-h scroll container. rds lines keep their `> ${fmtTick(tick)}` sim-tick timestamps as-is (no logTs needed).
+- cloudwatch.tsx: deleted top CONTROL DECK ("SIGNAL SCOPE // LIVE"). Rail CONTROLS panel below LIVE STATS: SimControls + tiny labels ("ALARM THRESHOLD", "ALARM ACTIONS", "CHAOS INJECTION") + relocated THRESHOLD 60/75/90, SNS NOTIFY, SCALING ACTION, INJECT CPU SPIKE, INJECT 5XX BURST (exact handlers/aria/pressed-state colors). ALARM HISTORY // LIVE (subtitle "AWS/EC2 · CPUUtilization" kept) moved below the grid full-width with AutoLog lines={history}; deleted histBoxRef + auto-scroll effect. History lines already embed `${tstamp(tick)}` sim-tick timestamps → kept as-is, no logTs import.
+- containers.tsx: deleted top CONTROL DECK ("ORCHESTRATOR // LIVE"). Rail CONTROLS panel below LIVE STATS: SimControls (statusLine kept) + ORCHESTRATOR ECS/EKS role=group (w-full), LAUNCH toggle, DESIRED COUNT 2/4/6 group converted to grid w-full grid-cols-3, AUTOSCALING toggle, CHAOS & DEPLOY row (DEPLOY NEW IMAGE w/ deployActive disabled + dynamic label, TRAFFIC SPIKE, KILL TASK) — all handlers/aria-labels/colors preserved. ORCHESTRATOR LOG // LIVE (subtitle `${orch} · ${launch} · TICK …` kept) moved below the grid full-width with AutoLog lines={log} (long lines truncate w/ tooltip per AutoLog — intended); deleted logBoxRef + auto-scroll effect. MAX_LOG slice cap kept in pushLog; `${ts}` sim-tick timestamps kept as-is.
+- All 3: rail order LIVE STATS → CONTROLS (→ no extra data panels in these files); FLOW VIEW panel had no actions prop; FlowCanvas children untouched; grid width unchanged (320px rds/cw, 300px containers per 16-e deviation); no sim logic/state/effect/timer changes; exported component names/signatures unchanged; only new import is AutoLog.
+
+Stage Summary:
+- All 3 modules now: animation left, right rail = LIVE STATS → CONTROLS, full-width AutoLog panel (fixed 4-line, pinned auto-scroll, tone maps preserved via tones prop) between the grid and KNOWLEDGE.
+- Verification: bunx tsc --noEmit filtered to the 3 files → empty; bun run lint → exit 0, 0 errors/warnings; dev server GET / → 200, compile clean.
+---
+Task ID: 17-a
+Agent: general-purpose
+Task: Restructure iam/vpc/lambda — controls to right rail below LIVE STATS, logs to full-width bottom AutoLog
+
+Work Log:
+- iam.tsx: deleted top CONTROL DECK ("ACCESS MATRIX // LIVE"); moved SimControls (same status strings incl. dynamic ENGINE LIVE — EVALUATING AS …) + MFA toggle + ACTION UNDER TEST selector row + EVALUATE NOW into new CONTROLS GlassPanel (delay 0.12, !p-0) directly below LIVE STATS in the rail (tiny-label groups "MFA SESSION CONTEXT" / "ACTION UNDER TEST"; all onClick/aria/active colors verbatim). Moved "ENGINE TRACE — DECISION LOG" below the grid full-width (delay 0.18) with AutoLog lines={log.map((t,i)=>({id:i,text:t}))} toneOf={logTone} tones={TRACE_TONES}; deleted logBoxRef + auto-scroll useEffect + old max-h-40 overflow-y-auto wrapper. Timestamps: `[${logTs()}] ` prepended in tick's pushLog; armed line via armedLine() helper at useState lazy init / ref seed / reset (logRef seeded from initial state so ts matches state).
+- vpc.tsx: deleted top CONTROL DECK ("VOID NETWORK // LIVE"); moved SimControls + SG/NACL view selector + NAT toggle + STEP TRACE (onClick={tick} kept) into CONTROLS panel below LIVE STATS (groups "FILTER ENGINE VIEW" / "EGRESS + TRACE"). Moved "PACKET TRACE — HOP-BY-HOP" below grid full-width with AutoLog (same mapping as iam, tones=TRACE_TONES, emptyText "// packet trace empty"); deleted logBoxRef + auto-scroll effect. Timestamps in pushLog + armedLine() for initial/reset; logTone startsWith("> ✕"/"> ───") → includes() since ts prefix now leads the line.
+- lambda.tsx: deleted top CONTROL DECK ("PHANTOM COMPUTE // λ"); moved SimControls + COLD/WARM toggle + BURST ×6 + MEM slider (w-24 → w-full flex-1, wrapper w-full per 320px rail) + CONCURRENCY gauge (read-only display, kept w/ w-full) into CONTROLS panel below LIVE STATS (groups "INVOCATION MODE" / "MEMORY SIZE" / "RESERVED CONCURRENCY"). Moved "EXECUTION LOG" below grid full-width with AutoLog lines={logs} tones={TONE_CLS} emptyText="// execution log empty — invoke something" (old slice(-14) + AnimatePresence manual renderer removed; unique log ids kept). Timestamps added at the single pushLog helper. Event-source fire buttons INSIDE FlowCanvas untouched.
+- All 3: logTone/log tone maps converted to tone KEYS + file's own TRACE_TONES/TONE_CLS passed via AutoLog `tones` (deviation: spec's literal toneOf={logTone} would feed class strings through the tone→class map and drop colors; key-returning logTone + tones map preserves the exact legacy classes). Rail order LIVE STATS → CONTROLS; FLOW VIEW panels had no actions prop; FlowCanvas children, sim logic, timers, state machines, exported component names untouched.
+
+Stage Summary:
+- iam/vpc/lambda now: animation left, right rail = LIVE STATS → CONTROLS (all former deck controls, 320px-safe wrapping, full-width slider/gauge), full-width 4-line AutoLog panel (delay 0.18) between grid and KNOWLEDGE.
+- Every log line timestamped `[HH:MM:SS.mmm] ` at push time (pushLog helpers; armed/initial lines via armedLine()); service data (req ids, verdicts, hop numbers, 429/latency/cold-warm, error codes) preserved.
+- Verification: bunx tsc --noEmit filtered to services/(iam|vpc|lambda) → empty; bun run lint → 0 errors; leftover scan (logBoxRef/INITIAL_LOG/deck titles) → clean; only the 3 assigned files modified.
+---
+Task ID: 17-d
+Agent: general-purpose
+Task: Restructure ec2/s3/elb/sqs — controls to right rail below LIVE STATS, ec2 state log to full-width bottom AutoLog
+
+Work Log:
+- ec2.tsx Panel A "LIFECYCLE STATE MACHINE": removed actions={SimControls} from the GlassPanel header and deleted the top control strip; START/STOP/REBOOT/TERMINATE (+ AnimatePresence-wrapped conditional REVIVE INSTANCE) re-homed into a new rail GlassPanel "CONTROLS" (title CONTROLS, className="!p-0", delay 0.12) placed BELOW the LIFECYCLE STATS glass-inset — SimControls first (same running/toggle/reset/status props), then a flex flex-wrap gap-2 row with all button classNames/disabled logic/aria-labels/motion props preserved verbatim (BTN const still used). Raw state-log glass-inset box deleted from the rail and replaced by a NEW FULL-WIDTH GlassPanel "STATE LOG // LIVE" (subtitle `instance ${instanceId} :: lifecycle transitions`, className="!p-0", delay 0.12) between Panel A and Panel B wrapping the shared <AutoLog lines={logs} emptyText="// state log empty — press START or engage autopilot" tones={TONE_CLS} /> (log state {id,text,tone} passes straight through; old slice(-16)/AnimatePresence markup dropped).
+- ec2.tsx timestamps: pushLog helper now computes `const ts = logTs()` at push time (once per call, before the setLogs updater) and prepends `[${ts}] ` to every line — all existing message content (state names, transition arrows, instance ids, status-check/auto-scaling lines) kept verbatim. Imported { AutoLog, logTs } from "@/components/shared/auto-log". FlowCanvas internals untouched.
+- ec2.tsx Panel B "AUTO SCALING GROUP SIM": removed actions={SimControls} from header and deleted the CPU-load + family-grid control strip (with its min-w-[240px]/min-w-[320px] wrappers); new rail "CONTROLS" GlassPanel (delay 0.12) directly below ASG STATS containing SimControls (asgRunning props verbatim) + tiny group labels ("CPU LOAD DRIVER", "INSTANCE FAMILY" — text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground) + the full-width CPU load slider (Cpu icon, range input, {load}% readout, AVG bar with danger/mint/aws classes — handlers/aria kept) + the 6-family grid as grid grid-cols-3 gap-2 (2 rows in the 300px rail, per-button icon/name/role, selected border-aws bg-aws/10 text-aws box-glow styling, aria-labels, whileHover/whileTap all preserved). Policy event ticker + family detail strip STAY in the rail after CONTROLS; ASG tick engine untouched. No bottom log for Panel B.
+- s3.tsx: deleted the top CONTROL DECK "INFINITE VAULT // LIVE" GlassPanel; new rail "CONTROLS" GlassPanel (delay 0.12) directly below LIVE STATS with SimControls (BUCKET ONLINE status verbatim) + labels "BUCKET CONFIG" (VERSIONING + REPLICATION toggles, exact classNames/aria) + "OBJECT ACTIONS" (PUT OBJECT motion.button verbatim) in flex flex-wrap gap-2 rows; the putObject FlowNode onClick inside the canvas (UPLOADS node) stays. Order: LIVE STATS → CONTROLS → STORAGE CLASS PRICING → RECENT OBJECTS (delays 0.15/0.2 unchanged). FLOW VIEW header had no actions to remove.
+- elb.tsx: deleted the top CONTROL DECK "TRAFFIC SPLITTER // LIVE"; new rail "CONTROLS" (delay 0.12) below LIVE STATS with SimControls (ALB status verbatim) + label "LISTENER & TARGETS" + PATH RULES toggle (BTN const reused, aria kept) + KILL TARGET motion.button (disabled={healthyCount === 0} kept) + the health-check hint span (text-[8px] tracking-wider text-muted-foreground uppercase) as a full-width line under the buttons. Order: LIVE STATS → CONTROLS → TARGET HEALTH. FLOW VIEW header had no actions.
+- sqs.tsx: deleted the top CONTROL DECK "QUEUE SIMULATOR // LIVE"; new rail "CONTROLS" (delay 0.12) below LIVE STATS with SimControls + label "QUEUE CONFIG" (FIFO/STANDARD + LONG/SHORT POLLING toggles verbatim) + label "CHAOS ACTIONS" (INJECT POISON MSG motion.button verbatim). Order: LIVE STATS → CONTROLS → DLQ CONTENTS. FLOW VIEW header had no actions.
+- All four: no fixed-width classes introduced (dropped min-w wrappers; wide rows use flex flex-wrap gap-2; family grid is fixed 3 cols and wraps naturally in the 300px rail / stacked mobile). Zero sim-logic/state/ref/effect/timer changes; aria-labels, motion props, AnimatePresence wrappers preserved; only files touched: the 4 assigned ones.
+
+Stage Summary:
+- ec2 now: Panel A (FlowCanvas + rail LIFECYCLE STATS → CONTROLS) → full-width STATE LOG // LIVE AutoLog with [HH:MM:SS.mmm] timestamps pushed in pushLog → Panel B (ASG visual + rail ASG STATS → CONTROLS (SimControls+CPU slider+3-col family grid) → policy ticker → family detail). s3/elb/sqs now: FLOW VIEW left, rail LIVE STATS → CONTROLS → data panels; top control decks deleted.
+- Verification: bunx tsc --noEmit | rg "services/(ec2|s3|elb|sqs)" → empty (0 errors); bun run lint → exit 0, no warnings for these files.
+- Deviations: (1) tiny uppercase group labels added inside CONTROLS panels (spec pattern for s3/elb/sqs; applied to ec2 Panel B too for consistency); (2) deck titles/subtitles (INFINITE VAULT // LIVE, TRAFFIC SPLITTER // LIVE, QUEUE SIMULATOR // LIVE + their dynamic status subtitles) die with the deleted decks per spec — their state remains visible via the toggle buttons and FLOW VIEW subtitles; (3) elb health-check hint span kept inside CONTROLS rather than dropped.
+
+---
+Task ID: 17-main
+Agent: main
+Task: Structural UI change across all services except GLOBAL INFRASTRUCTURE — controls to right rail below LIVE STATS, logs to full-width bottom (4-line auto-scroll with timestamps)
+
+Work Log:
+- Created shared component src/components/shared/auto-log.tsx: AutoLog (fixed 4-line terminal log, pinned auto-scroll to newest entry, tone map, toneOf content-coloring, entry animation, truncate+tooltip) + logTs() wall-clock helper + LOG_TONE_CLS
+- Dispatched 4 parallel agents (17-a: iam/vpc/lambda, 17-b: api-gateway/sns/cloudfront, 17-c: rds/cloudwatch/containers, 17-d: ec2/s3/elb/sqs) with precise spec: delete top CONTROL DECKs, add CONTROLS GlassPanel in rail directly below LIVE STATS with all deck controls (handlers/aria/styling preserved), move text-log panels below the main grid full-width wired to AutoLog, timestamps at push time (logTs or existing sim-tick stamps), data panels (TARGET HEALTH, DLQ, PRICING, RECENT OBJECTS, LATENCY READOUT) stay in rail
+- Fixed AutoLog flex-shrink bug: lines compressed to 6px inside fixed-height container (no scroll) → added shrink-0 to line elements; verified scrollTop pins to bottom (pinned=true)
+- Fixed vpc measurement false alarm (stale reading during module transition; re-measured: PACKET TRACE w=1270 top=866 full-width below grid)
+- Verification: lint 0 errors; tsc project-clean; Agent Browser swept all 13 modules — LIVE STATS→CONTROLS rail order confirmed everywhere, log panels full-width (1270px) below grid for the 10 log services, s3 PUT OBJECT from rail works (object appears in RECENT OBJECTS), containers kill-task → log flows + auto-scrolls, EC2 START → timestamped STATE LOG lines (STOPPED→PENDING→RUNNING), zero page errors, mobile 390px scrollWidth=390 no overflow
+- dev.log clean (GET / 200, compiles clean)
+
+Stage Summary:
+- New uniform layout in all 13 services: [animation | rail: LIVE STATS → CONTROLS → data panels] + full-width 4-line auto-scrolling timestamped log card below the animation
+- GLOBAL INFRASTRUCTURE untouched; shared AutoLog reused by 10 services; s3/elb/sqs keep data panels (no native text logs)
+- Screenshots: /home/z/shots/r17-iam.png, r17-iam-log.png, r17-ec2-top.png, r17-ec2-log2.png, r17-containers-log.png, r17-mobile-s3.png

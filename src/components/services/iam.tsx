@@ -7,8 +7,9 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
+import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { IAMIcon, UserIcon, LambdaIcon, AccountIcon } from "@/components/aws-icons";
-import { KeyRound, Terminal, Zap } from "lucide-react";
+import { KeyRound, Zap } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* IAM — LIVE POLICY EVALUATION ENGINE                                  */
@@ -133,12 +134,22 @@ function evaluateCard(card: PolicyCard, act: ActionId, mfa: boolean): { badge: B
   return { badge: "allow", line: `> ${card.name} ... ${card.note} — ALLOW matched` };
 }
 
+/* tone keys for the shared AutoLog (classes preserved from the legacy renderer) */
+const TRACE_TONES: Record<string, string> = {
+  danger: "text-danger",
+  mint: "text-mint",
+  skip: "text-muted-foreground/70",
+  plain: "text-foreground/70",
+};
+
 function logTone(line: string): string {
-  if (line.includes("EXPLICIT DENY") || line.includes("DENIED")) return "text-danger";
-  if (line.includes("GRANTED") || line.includes("ALLOW matched")) return "text-mint";
-  if (line.includes("SKIP") || line.includes("HALT")) return "text-muted-foreground/70";
-  return "text-foreground/70";
+  if (line.includes("EXPLICIT DENY") || line.includes("DENIED")) return "danger";
+  if (line.includes("GRANTED") || line.includes("ALLOW matched")) return "mint";
+  if (line.includes("SKIP") || line.includes("HALT")) return "skip";
+  return "plain";
 }
+
+const armedLine = () => `[${logTs()}] > policy engine armed — press RUN or EVALUATE`;
 
 interface EvalRequest {
   principal: PrincipalId;
@@ -158,7 +169,7 @@ export default function IAMVisualizer() {
   const [results, setResults] = useState<Badge[]>(PENDING_RESULTS);
   const [verdict, setVerdict] = useState<"ALLOW" | "DENY" | null>(null);
   const [reason, setReason] = useState("STANDBY");
-  const [log, setLog] = useState<string[]>(["> policy engine armed — press RUN or EVALUATE"]);
+  const [log, setLog] = useState<string[]>(() => [armedLine()]);
   const [evaluated, setEvaluated] = useState(0);
   const [runId, setRunId] = useState(0);
   const [request, setRequest] = useState<EvalRequest | null>(null);
@@ -171,11 +182,10 @@ export default function IAMVisualizer() {
   const resultsRef = useRef<Badge[]>([...PENDING_RESULTS]);
   const verdictRef = useRef<"ALLOW" | "DENY" | null>(null);
   const reasonRef = useRef("STANDBY");
-  const logRef = useRef<string[]>(["> policy engine armed — press RUN or EVALUATE"]);
+  const logRef = useRef<string[]>(log); // seeded from initial state — only ever replaced with fresh arrays
   const evaluatedRef = useRef(0);
   const runIdRef = useRef(0);
   const reqRef = useRef<EvalRequest | null>(null);
-  const logBoxRef = useRef<HTMLDivElement | null>(null);
 
   const flush = useCallback(() => {
     setStep(stepRef.current);
@@ -190,7 +200,7 @@ export default function IAMVisualizer() {
 
   const tick = useCallback(() => {
     const pushLog = (line: string) => {
-      logRef.current = [...logRef.current, line].slice(-MAX_LOG);
+      logRef.current = [...logRef.current, `[${logTs()}] ${line}`].slice(-MAX_LOG);
     };
     const st = stepRef.current;
     const req = reqRef.current;
@@ -250,19 +260,13 @@ export default function IAMVisualizer() {
     return () => clearInterval(timer);
   }, [running, tick]);
 
-  // keep terminal scrolled to the freshest trace line
-  useEffect(() => {
-    const el = logBoxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [log]);
-
   const reset = () => {
     setRunning(false);
     stepRef.current = 0;
     resultsRef.current = [...PENDING_RESULTS];
     verdictRef.current = null;
     reasonRef.current = "STANDBY";
-    logRef.current = ["> policy engine armed — press RUN or EVALUATE"];
+    logRef.current = [armedLine()];
     evaluatedRef.current = 0;
     runIdRef.current = 0;
     reqRef.current = null;
@@ -294,21 +298,15 @@ export default function IAMVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="ACCESS MATRIX // LIVE"
-        subtitle="ZERO-TRUST POLICY ENGINE — EXPLICIT DENY ALWAYS WINS"
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={running ? `ENGINE LIVE — EVALUATING AS ${PRINCIPALS[displayPrincipal].label}` : "ENGINE IDLE — PRESS RUN"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="IAM policy evaluation flow diagram">
+      {/* MAIN GRID — ANIMATION LEFT / RAIL RIGHT */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // POLICY EVALUATION"
+          subtitle="PRINCIPAL → POLICY ENGINE → ALLOW / DENY VERDICT"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="IAM policy evaluation flow diagram">
             {/* LINKS — principals into the engine */}
             <FlowLink d="M17,17 C27,17 28,42 37,46" status={reqActive && request?.principal === "root" ? "cyber" : "idle"} dotDuration={1.3} />
             <FlowLink d="M17,50 C25,50 27,50 37,50" status={reqActive && request?.principal === "alice" ? "cyber" : "idle"} dotDuration={1.1} />
@@ -447,23 +445,32 @@ export default function IAMVisualizer() {
               {"EVAL ORDER — EXPLICIT DENY > ALLOW > DEFAULT DENY"}
             </FlowLabel>
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="POLICIES EVALUATED" value={String(evaluated)} />
-            <StatChip
-              label="VERDICT"
-              value={verdict ?? "—"}
-              tone={verdict === "ALLOW" ? "mint" : verdict === "DENY" ? "magenta" : "neutral"}
-            />
-            <StatChip label="IDENTITY TYPE" value={PRINCIPALS[principal].kind} tone="neutral" />
-            <StatChip label="MFA" value={mfa ? "ON" : "OFF"} tone={mfa ? "mint" : "magenta"} />
-          </div>
+        {/* RIGHT RAIL — LIVE STATS + CONTROLS */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="POLICIES EVALUATED" value={String(evaluated)} />
+              <StatChip
+                label="VERDICT"
+                value={verdict ?? "—"}
+                tone={verdict === "ALLOW" ? "mint" : verdict === "DENY" ? "magenta" : "neutral"}
+              />
+              <StatChip label="IDENTITY TYPE" value={PRINCIPALS[principal].kind} tone="neutral" />
+              <StatChip label="MFA" value={mfa ? "ON" : "OFF"} tone={mfa ? "mint" : "magenta"} />
+            </div>
+          </GlassPanel>
 
-          {/* CONTROLS + TRACE */}
-          <div className="grid md:grid-cols-[minmax(0,270px)_1fr] gap-3">
-            <div className="flex flex-col gap-2">
-              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">SIMULATION CONTROLS</p>
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={running ? `ENGINE LIVE — EVALUATING AS ${PRINCIPALS[displayPrincipal].label}` : "ENGINE IDLE — PRESS RUN"}
+              />
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">MFA SESSION CONTEXT</p>
               <button
                 type="button"
                 onClick={toggleMfa}
@@ -476,7 +483,7 @@ export default function IAMVisualizer() {
                 {"MFA ENROLLED: "}
                 {mfa ? "ON" : "OFF"}
               </button>
-              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground pt-1">ACTION UNDER TEST</p>
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">ACTION UNDER TEST</p>
               <div className="flex flex-wrap gap-2">
                 {ACTIONS.map((a) => (
                   <button
@@ -505,25 +512,19 @@ export default function IAMVisualizer() {
                 EVALUATE NOW
               </motion.button>
             </div>
-            <div className="glass-inset cyber-cut-sm p-2.5 max-h-40 overflow-y-auto cyber-scroll" ref={logBoxRef} aria-live="polite">
-              <div className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-[0.2em] text-aws border-b border-aws/15 pb-1.5 mb-1.5">
-                <Terminal className="w-3 h-3" />
-                ENGINE TRACE — DECISION LOG
-              </div>
-              <div className="flex flex-col gap-0.5">
-                {log.map((line, i) => (
-                  <motion.p
-                    key={`${i}-${line.slice(0, 16)}`}
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`text-[8px] leading-snug tracking-wide ${logTone(line)}`}
-                  >
-                    {line}
-                  </motion.p>
-                ))}
-              </div>
-            </div>
-          </div>
+          </GlassPanel>
+        </div>
+      </div>
+
+      {/* ENGINE TRACE — full width below the grid */}
+      <GlassPanel title="ENGINE TRACE — DECISION LOG" className="!p-0" delay={0.18}>
+        <div className="p-3">
+          <AutoLog
+            lines={log.map((t, i) => ({ id: i, text: t }))}
+            toneOf={logTone}
+            tones={TRACE_TONES}
+            emptyText="// trace buffer empty"
+          />
         </div>
       </GlassPanel>
 

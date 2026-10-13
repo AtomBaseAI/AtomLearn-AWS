@@ -7,6 +7,7 @@ import { FlowCanvas, FlowNode, FlowLink, FlowLabel } from "@/components/shared/f
 import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
+import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { VPCIcon, InternetIcon, ELBIcon, EC2Icon, RDSIcon, InternetGatewayIcon, NatGatewayIcon, AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
 import { ShieldCheck, ShieldAlert, Power, Terminal } from "lucide-react";
 
@@ -19,14 +20,22 @@ type ViewMode = "sg" | "nacl";
 const MAX_LOG = 60;
 const BG_POOL = ["LB-B", "NAT-B", "EC2-B1", "EC2-B2", "RDS-B"];
 
-const INITIAL_LOG = ["> packet tracer armed — press RUN or STEP TRACE"];
+/* tone keys for the shared AutoLog (classes preserved from the legacy renderer) */
+const TRACE_TONES: Record<string, string> = {
+  danger: "text-danger",
+  mint: "text-mint",
+  sep: "text-muted-foreground/70",
+  plain: "text-foreground/70",
+};
 
 function logTone(line: string): string {
-  if (line.startsWith("> ✕")) return "text-danger";
-  if (line.includes("STATEFUL") || line.includes("trace complete")) return "text-mint";
-  if (line.startsWith("> ───")) return "text-muted-foreground/70";
-  return "text-foreground/70";
+  if (line.includes("> ✕")) return "danger";
+  if (line.includes("STATEFUL") || line.includes("trace complete")) return "mint";
+  if (line.includes("> ───")) return "sep";
+  return "plain";
 }
+
+const armedLine = () => `[${logTs()}] > packet tracer armed — press RUN or STEP TRACE`;
 
 interface SubnetBoxProps {
   left: string;
@@ -60,7 +69,7 @@ export default function VPCVisualizer() {
   const [natOn, setNatOn] = useState(true);
   const [running, setRunning] = useState(false);
   const [step, setStep] = useState(0);
-  const [log, setLog] = useState<string[]>(INITIAL_LOG);
+  const [log, setLog] = useState<string[]>(() => [armedLine()]);
   const [natFail, setNatFail] = useState(false);
   const [naclFail, setNaclFail] = useState(false);
   const [bg, setBg] = useState<string | null>(null);
@@ -69,12 +78,11 @@ export default function VPCVisualizer() {
   const viewRef = useRef<ViewMode>("sg");
   const natOnRef = useRef(true);
   const stepRef = useRef(0);
-  const logRef = useRef<string[]>(INITIAL_LOG);
+  const logRef = useRef<string[]>(log); // seeded from initial state — only ever replaced with fresh arrays
   const natFailRef = useRef(false);
   const naclFailRef = useRef(false);
   const bgRef = useRef<string | null>(null);
   const traceNRef = useRef(0);
-  const logBoxRef = useRef<HTMLDivElement | null>(null);
 
   const flush = useCallback(() => {
     setStep(stepRef.current);
@@ -86,7 +94,7 @@ export default function VPCVisualizer() {
 
   const tick = useCallback(() => {
     const pushLog = (line: string) => {
-      logRef.current = [...logRef.current, line].slice(-MAX_LOG);
+      logRef.current = [...logRef.current, `[${logTs()}] ${line}`].slice(-MAX_LOG);
     };
     // ambient AZ-B background traffic so the mesh feels alive
     bgRef.current = Math.random() < 0.45 ? BG_POOL[Math.floor(Math.random() * BG_POOL.length)] : null;
@@ -138,16 +146,10 @@ export default function VPCVisualizer() {
     return () => clearInterval(timer);
   }, [running, tick]);
 
-  // keep terminal pinned to the freshest hop
-  useEffect(() => {
-    const el = logBoxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [log]);
-
   const reset = () => {
     setRunning(false);
     stepRef.current = 0;
-    logRef.current = INITIAL_LOG;
+    logRef.current = [armedLine()];
     natFailRef.current = false;
     naclFailRef.current = false;
     bgRef.current = null;
@@ -171,21 +173,15 @@ export default function VPCVisualizer() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* CONTROL DECK */}
-      <GlassPanel
-        title="VOID NETWORK // LIVE"
-        subtitle={view === "sg" ? "SG STATEFUL — RETURN TRAFFIC AUTO-ALLOWED" : "NACL STATELESS — RETURN TRAFFIC RE-EVALUATED"}
-        actions={
-          <SimControls
-            running={running}
-            onToggle={() => setRunning((r) => !r)}
-            onReset={reset}
-            status={running ? "TRACEROUTE LIVE — PACKETS FLOWING" : "TRACER IDLE — PRESS RUN"}
-          />
-        }
-      >
-        <div className="p-3 sm:p-4 flex flex-col gap-3">
-          <FlowCanvas className="h-[440px] sm:h-[540px]" ariaLabel="VPC packet trace network diagram">
+      {/* MAIN GRID — ANIMATION LEFT / RAIL RIGHT */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+        <GlassPanel
+          title="FLOW VIEW // PACKET TRACER TOPOLOGY"
+          subtitle="INTERNET → IGW → NACL → SG → NAT — STATEFUL VS STATELESS"
+          className="!p-0 overflow-hidden"
+          delay={0.05}
+        >
+          <FlowCanvas className="h-[440px] sm:h-[540px] lg:h-[560px]" ariaLabel="VPC packet trace network diagram">
             {/* SUBNET BOUNDARIES (no fill — SVG links stay visible beneath) */}
             <SubnetBox left="3%" top="36%" width="43%" height="23%" label={"PUBLIC-SUBNET-A // 10.0.1.0/24"} rt="RT: PUBLIC-RT" tile={AWS_EXTRA_ICONS.publicSubnet} danger={view === "nacl"} />
             <SubnetBox left="3%" top="62%" width="43%" height="32%" label={"PRIVATE-SUBNET-A // 10.0.2.0/24"} rt="RT: PRIVATE-RT-A" tile={AWS_EXTRA_ICONS.privateSubnet} danger={blocked} />
@@ -354,18 +350,27 @@ export default function VPCVisualizer() {
               )}
             </AnimatePresence>
           </FlowCanvas>
+        </GlassPanel>
 
-          {/* STATS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip label="VPC CIDR" value="10.0.0.0/16" tone="neutral" />
-            <StatChip label="AVAILABILITY ZONES" value="2" />
-            <StatChip label="SUBNETS PUB/PRIV" value="2 / 2" />
-            <StatChip label="ROUTE TABLES" value="3" tone="neutral" />
-          </div>
+        {/* RIGHT RAIL — LIVE STATS + CONTROLS */}
+        <div className="flex flex-col gap-4 min-w-0">
+          <GlassPanel title="LIVE STATS" className="!p-0" delay={0.1}>
+            <div className="p-3 grid grid-cols-2 gap-2">
+              <StatChip label="VPC CIDR" value="10.0.0.0/16" tone="neutral" />
+              <StatChip label="AVAILABILITY ZONES" value="2" />
+              <StatChip label="SUBNETS PUB/PRIV" value="2 / 2" />
+              <StatChip label="ROUTE TABLES" value="3" tone="neutral" />
+            </div>
+          </GlassPanel>
 
-          {/* CONTROLS + TRACE */}
-          <div className="grid md:grid-cols-[minmax(0,300px)_1fr] gap-3">
-            <div className="flex flex-col gap-2">
+          <GlassPanel title="CONTROLS" className="!p-0" delay={0.12}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <SimControls
+                running={running}
+                onToggle={() => setRunning((r) => !r)}
+                onReset={reset}
+                status={running ? "TRACEROUTE LIVE — PACKETS FLOWING" : "TRACER IDLE — PRESS RUN"}
+              />
               <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">FILTER ENGINE VIEW</p>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -393,7 +398,8 @@ export default function VPCVisualizer() {
                   NACL STATELESS
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2 pt-1">
+              <p className="text-[8px] font-bold uppercase tracking-[0.25em] text-muted-foreground">EGRESS + TRACE</p>
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={toggleNat}
@@ -418,25 +424,19 @@ export default function VPCVisualizer() {
                 </motion.button>
               </div>
             </div>
-            <div className="glass-inset cyber-cut-sm p-2.5 max-h-40 overflow-y-auto cyber-scroll" ref={logBoxRef} aria-live="polite">
-              <div className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-[0.2em] text-aws border-b border-aws/15 pb-1.5 mb-1.5">
-                <Terminal className="w-3 h-3" />
-                PACKET TRACE — HOP-BY-HOP
-              </div>
-              <div className="flex flex-col gap-0.5">
-                {log.map((line, i) => (
-                  <motion.p
-                    key={`${i}-${line.slice(0, 14)}`}
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className={`text-[8px] leading-snug tracking-wide ${logTone(line)}`}
-                  >
-                    {line}
-                  </motion.p>
-                ))}
-              </div>
-            </div>
-          </div>
+          </GlassPanel>
+        </div>
+      </div>
+
+      {/* PACKET TRACE — full width below the grid */}
+      <GlassPanel title="PACKET TRACE — HOP-BY-HOP" className="!p-0" delay={0.18}>
+        <div className="p-3">
+          <AutoLog
+            lines={log.map((t, i) => ({ id: i, text: t }))}
+            toneOf={logTone}
+            tones={TRACE_TONES}
+            emptyText="// packet trace empty"
+          />
         </div>
       </GlassPanel>
 
