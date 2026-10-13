@@ -66,10 +66,10 @@ export function BootOverlay({ onDone }: { onDone: () => void }) {
           transition={{ delay: 0.2 }}
           className="text-2xl font-extrabold tracking-[0.35em] text-aws text-glow"
         >
-          AWS//NEXUS
+          ATOM//NEXUS
         </motion.h1>
         <p className="mt-2 text-[9px] tracking-[0.4em] text-muted-foreground uppercase">
-          VISUAL CLOUD CONSOLE — BOOT SEQUENCE
+          ATOM OSS - VISUAL CLOUD CONSOLE — BOOT SEQUENCE
         </p>
 
         {/* official AWS service tiles mounting in sequence */}
@@ -110,9 +110,6 @@ export function BootOverlay({ onDone }: { onDone: () => void }) {
           </div>
           <span className="text-[9px] text-aws font-bold w-9 text-right">{Math.floor(progress)}%</span>
         </div>
-        <p className="mt-4 text-[8px] tracking-[0.3em] text-muted-foreground/60 uppercase">
-          CLICK ANYWHERE TO SKIP
-        </p>
       </div>
     </motion.div>
   );
