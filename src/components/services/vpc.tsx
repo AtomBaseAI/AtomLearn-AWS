@@ -9,9 +9,11 @@ import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { VpcUseCases } from "./vpc-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import { VPCIcon, InternetIcon, ELBIcon, EC2Icon, RDSIcon, InternetGatewayIcon, NatGatewayIcon, AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
-import { ShieldCheck, ShieldAlert, Power, Terminal } from "lucide-react";
+import { ShieldCheck, ShieldAlert, Power, Terminal, Network, Layers3, ArrowLeftRight, ShieldHalf } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* VPC — VOID NETWORK: packet-trace architecture                        */
@@ -38,6 +40,15 @@ function logTone(line: string): string {
 }
 
 const armedLine = () => `[${logTs()}] > packet tracer armed — press RUN or STEP TRACE`;
+
+const VPC_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Network },
+  { id: "THREE_TIER", label: "THREE-TIER WEB APP", num: "02", icon: Layers3 },
+  { id: "NAT", label: "NAT GATEWAY", num: "03", icon: ArrowLeftRight },
+  { id: "SG_NACL", label: "SG VS NACL", num: "04", icon: ShieldHalf },
+] as const satisfies readonly UcTabDef[];
+
+type VpcTabId = (typeof VPC_TABS)[number]["id"];
 
 interface SubnetBoxProps {
   left: string;
@@ -68,6 +79,7 @@ function SubnetBox({ left, top, width, height, label, rt, danger, tile }: Subnet
 
 export default function VPCVisualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<VpcTabId>("GENERAL");
   const [view, setView] = useState<ViewMode>("sg");
   const [natOn, setNatOn] = useState(true);
   const [running, setRunning] = useState(false);
@@ -182,6 +194,15 @@ export default function VPCVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={VPC_TABS} active={tab} onChange={(t) => setTab(t as VpcTabId)} label="VPC views" />
+
+      {tab !== "GENERAL" && (
+        <VpcUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — ANIMATION LEFT / RAIL RIGHT */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -472,6 +493,8 @@ export default function VPCVisualizer() {
           <span className="text-aws">AWS Transit Gateway</span> exists for hub-and-spoke at scale.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

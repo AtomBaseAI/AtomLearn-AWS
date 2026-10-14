@@ -8,10 +8,12 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { CfUseCases } from "./cloudfront-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import { StatChip } from "@/components/shared/typography";
 import { CloudFrontIcon, S3Icon, UserIcon } from "@/components/aws-icons";
-import { Timer, Trash2 } from "lucide-react";
+import { KeyRound, MapPin, PlayCircle, Timer, Trash2, Zap } from "lucide-react";
 
 type LogTone = "aws" | "mint" | "danger" | "magenta" | "dim";
 type Phase = "idle" | "in" | "fetchOut" | "fetchBack" | "out";
@@ -36,6 +38,15 @@ const USER_NAMES = ["USER-MUMBAI", "USER-FRANKFURT", "USER-TOKYO"] as const;
 const EDGE_NAMES = ["EDGE-BOM", "EDGE-FRA", "EDGE-NRT"] as const;
 const USER_YS = [16, 50, 84];
 const PATHS = ["/assets/app.js", "/img/hero.jpg", "/api/data.json"] as const;
+
+const CF_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Zap },
+  { id: "GLOBAL_EDGE", label: "GLOBAL EDGE ACCEL", num: "02", icon: MapPin },
+  { id: "STREAMING", label: "MEDIA STREAMING", num: "03", icon: PlayCircle },
+  { id: "SIGNED_URLS", label: "SIGNED URLS", num: "04", icon: KeyRound },
+] as const satisfies readonly UcTabDef[];
+
+type CfTabId = (typeof CF_TABS)[number]["id"];
 
 const IN_D = ["M13,16 C20,16 24,16 33,16", "M13,50 C20,50 24,50 33,50", "M13,84 C20,84 24,84 33,84"];
 const OUT_D = [
@@ -135,6 +146,7 @@ function EdgeNode({
 
 export default function CloudFrontVisualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<CfTabId>("GENERAL");
   const [running, setRunning] = useState(false);
   const [ttl, setTtl] = useState(600);
 
@@ -305,6 +317,15 @@ export default function CloudFrontVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={CF_TABS} active={tab} onChange={(t) => setTab(t as CfTabId)} label="CloudFront views" />
+
+      {tab !== "GENERAL" && (
+        <CfUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — flow view left, stats + controls + readout rail right */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -614,6 +635,8 @@ export default function CloudFrontVisualizer() {
           origins with SigV4 — the bucket can stay fully private, reachable only by the distribution.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

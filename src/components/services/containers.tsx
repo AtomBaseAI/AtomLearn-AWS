@@ -9,6 +9,8 @@ import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog } from "@/components/shared/auto-log";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { ContainersUseCases } from "./containers-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import {
   CloudWatchIcon,
@@ -23,7 +25,7 @@ import {
   FargateIcon,
   InternetIcon,
 } from "@/components/aws-icons";
-import { Container, Rocket, Skull, TrendingUp, Zap } from "lucide-react";
+import { Boxes, Container, Expand, GitCommit, Grid3x3, Rocket, Skull, TrendingUp, Zap } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* CONTAINERS // ORCHESTRATOR — ECS + EKS + ECR                        */
@@ -191,9 +193,21 @@ function TaskChip({ t, orch, activeVer }: { t: Task; orch: Orch; activeVer: numb
 /* CONTAINERS — ORCHESTRATOR                                           */
 /* ------------------------------------------------------------------ */
 
+/* USE-CASE TABS — GENERAL + 3 best-use-case scenarios */
+
+const CONTAINERS_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Boxes },
+  { id: "ROLLING_DEPLOY", label: "CI/CD ROLLING DEPLOY", num: "02", icon: GitCommit },
+  { id: "SERVICE_SCALING", label: "SERVICE AUTOSCALING", num: "03", icon: Expand },
+  { id: "EKS_HPA", label: "EKS PODS HPA", num: "04", icon: Grid3x3 },
+] as const satisfies readonly UcTabDef[];
+
+type ContainersTabId = (typeof CONTAINERS_TABS)[number]["id"];
+
 export default function Containers() {
   const immersive = useImmersiveView();
   /* control states */
+  const [tab, setTab] = useState<ContainersTabId>("GENERAL");
   const [running, setRunning] = useState(false);
   const [orch, setOrch] = useState<Orch>("ECS");
   const [launch, setLaunch] = useState<LaunchType>("EC2");
@@ -670,6 +684,15 @@ export default function Containers() {
           : "flex flex-col gap-4"
       }
     >
+      {/* USE-CASE TABS */}
+      <UseCaseTabs tabs={CONTAINERS_TABS} active={tab} onChange={(t) => setTab(t as ContainersTabId)} label="Containers views" />
+
+      {tab !== "GENERAL" && (
+        <ContainersUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — flow view left, live stats + controls rail right */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -1212,6 +1235,8 @@ export default function Containers() {
           signal driving target tracking here.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

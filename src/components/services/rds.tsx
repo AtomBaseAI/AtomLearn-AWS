@@ -9,9 +9,11 @@ import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog } from "@/components/shared/auto-log";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { RdsUseCases } from "./rds-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import { EC2Icon, RDSIcon, RDSInstanceIcon, RDSProxyIcon } from "@/components/aws-icons";
-import { Layers, Gauge, Zap, ZapOff, Power } from "lucide-react";
+import { Database, Gauge, History, Layers, Power, RefreshCw, Copy, Zap, ZapOff } from "lucide-react";
 
 type LogTone = "aws" | "mint" | "danger" | "magenta" | "neon" | "dim";
 type FailoverPhase = "none" | "down" | "promoting" | "rebuilding";
@@ -40,6 +42,15 @@ const BTN_BASE =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm";
 
 const fmtTick = (t: number) => `t${String(t).padStart(3, "0")}`;
+
+const RDS_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Database },
+  { id: "MULTI_AZ", label: "MULTI-AZ FAILOVER", num: "02", icon: RefreshCw },
+  { id: "READ_REPLICAS", label: "READ REPLICAS", num: "03", icon: Copy },
+  { id: "PITR", label: "BACKUP & PITR", num: "04", icon: History },
+] as const satisfies readonly UcTabDef[];
+
+type RdsTabId = (typeof RDS_TABS)[number]["id"];
 
 /* ------------------------------------------------------------------ */
 /* DB CORE BLOCK — writer / standby glass block (role-swappable)       */
@@ -279,6 +290,7 @@ function ReplicaBlock({ idx, x, y, lag, applied, stale, delay }: ReplicaBlockPro
 
 export default function RDSVisualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<RdsTabId>("GENERAL");
   /* control states (read by the tick via closure deps) */
   const [running, setRunning] = useState(false);
   const [multiAZ, setMultiAZ] = useState(true);
@@ -663,6 +675,15 @@ export default function RDSVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={RDS_TABS} active={tab} onChange={(t) => setTab(t as RdsTabId)} label="RDS views" />
+
+      {tab !== "GENERAL" && (
+        <RdsUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* FLOW VIEW + RIGHT RAIL */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -1016,6 +1037,8 @@ export default function RDSVisualizer() {
           rejected behavior simulated above.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

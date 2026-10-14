@@ -9,8 +9,10 @@ import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
 import { useImmersiveView } from "@/hooks/use-immersive";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { SqsUseCases } from "./sqs-usecases";
 import { SNSIcon, LambdaIcon, SQSIcon, EC2Icon } from "@/components/aws-icons";
-import { Skull, Layers, Timer } from "lucide-react";
+import { DatabaseZap, ListOrdered, Recycle, ServerCog, Skull, Layers, Timer } from "lucide-react";
 
 interface Msg {
   id: number;
@@ -20,8 +22,18 @@ interface Msg {
 
 const MAX_SHOW = 6;
 
+const SQS_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: ListOrdered },
+  { id: "BUFFER", label: "BUFFER & THROTTLE", num: "02", icon: DatabaseZap },
+  { id: "WORKER_SCALING", label: "WORKER AUTOSCALING", num: "03", icon: ServerCog },
+  { id: "REDRIVE", label: "DLQ REDRIVE", num: "04", icon: Recycle },
+] as const satisfies readonly UcTabDef[];
+
+type SqsTabId = (typeof SQS_TABS)[number]["id"];
+
 export default function SQSVisualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<SqsTabId>("GENERAL");
   const [queue, setQueue] = useState<Msg[]>([]);
   const [dlq, setDlq] = useState<Msg[]>([]);
   const [workers, setWorkers] = useState<(Msg | null)[]>([null, null]);
@@ -136,6 +148,15 @@ export default function SQSVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={SQS_TABS} active={tab} onChange={(t) => setTab(t as SqsTabId)} label="SQS views" />
+
+      {tab !== "GENERAL" && (
+        <SqsUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — animation left, rail right */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -354,6 +375,8 @@ export default function SQSVisualizer() {
           Poison messages → redrive policy ships them to a DLQ after maxReceiveCount.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

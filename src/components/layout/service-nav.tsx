@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, PanelLeftClose } from "lucide-react";
 import { AWS_ARCH_ICONS, AWSIconTile } from "@/components/aws-icons";
 import { SERVICES } from "@/lib/services-data";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 interface ServiceNavProps {
   activeId: string;
   onSelect: (id: string) => void;
+  /** hide the whole mapper (synced to ?mapperhidden=true in the URL) */
+  onHide?: () => void;
 }
 
 interface TipState {
@@ -19,13 +21,16 @@ interface TipState {
   left: number;
 }
 
+/** second line of the expanded rail / tooltip: full service name (Containers keeps its ECS·EKS abbreviation) */
+const navSubLabel = (s: (typeof SERVICES)[number]) => (s.id === "containers" ? s.abbr : s.name);
+
 /**
  * Desktop: vertical rail of modules — COLLAPSIBLE.
  *   • Shrink mode (default): icons only, full label on hover via portal tooltip.
- *   • Expanded mode: icons + labels + codenames + live UTC clock.
+ *   • Expanded mode: icons + labels + service abbreviations + live UTC clock.
  * Mobile: horizontal scroll chips.
  */
-export function ServiceNav({ activeId, onSelect }: ServiceNavProps) {
+export function ServiceNav({ activeId, onSelect, onHide }: ServiceNavProps) {
   const [expanded, setExpanded] = useState(false); // DEFAULT: shrink mode
   const [mounted, setMounted] = useState(false);
   const [tip, setTip] = useState<TipState | null>(null);
@@ -101,14 +106,27 @@ export function ServiceNav({ activeId, onSelect }: ServiceNavProps) {
               </motion.p>
             )}
           </AnimatePresence>
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
-            className="flex items-center justify-center w-7 h-7 border border-aws/40 text-aws hover:bg-aws/10 hover:border-aws/70 transition-colors shrink-0"
-          >
-            {expanded ? <ChevronsLeft className="w-3.5 h-3.5" /> : <ChevronsRight className="w-3.5 h-3.5" />}
-          </button>
+          <div className="flex items-center gap-1 ml-auto shrink-0">
+            {onHide && expanded && (
+              <button
+                type="button"
+                onClick={onHide}
+                aria-label="Hide module mapper sidebar"
+                title="Hide mapper — shareable URL param mapperhidden=true"
+                className="flex items-center justify-center w-7 h-7 border border-foreground/25 text-muted-foreground hover:border-magenta/70 hover:text-magenta transition-colors shrink-0"
+              >
+                <PanelLeftClose className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+              className="flex items-center justify-center w-7 h-7 border border-aws/40 text-aws hover:bg-aws/10 hover:border-aws/70 transition-colors shrink-0"
+            >
+              {expanded ? <ChevronsLeft className="w-3.5 h-3.5" /> : <ChevronsRight className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
 
         {SERVICES.map((s, i) => {
@@ -137,7 +155,7 @@ export function ServiceNav({ activeId, onSelect }: ServiceNavProps) {
                   : "border-transparent hover:border-aws/30 hover:bg-aws/[0.04]"
               )}
               aria-current={active ? "page" : undefined}
-              aria-label={`${s.name} — ${s.codename}`}
+              aria-label={`${s.name} — ${s.abbr}`}
             >
               {active && expanded && (
                 <motion.span
@@ -191,7 +209,7 @@ export function ServiceNav({ activeId, onSelect }: ServiceNavProps) {
                       {s.index} {"//"} {s.short}
                     </span>
                     <span className="text-[7px] tracking-[0.2em] text-muted-foreground uppercase truncate whitespace-nowrap">
-                      {s.codename}
+                      {navSubLabel(s)}
                     </span>
                   </motion.span>
                 )}
@@ -275,7 +293,7 @@ export function ServiceNav({ activeId, onSelect }: ServiceNavProps) {
                         {s.index} {"//"} {s.short}
                       </p>
                       <p className="text-[7px] tracking-[0.2em] text-muted-foreground uppercase whitespace-nowrap mt-0.5">
-                        {s.codename}
+                        {navSubLabel(s)}
                       </p>
                     </div>
                   </div>
@@ -312,6 +330,18 @@ export function ServiceNav({ activeId, onSelect }: ServiceNavProps) {
             </motion.button>
           );
         })}
+        {onHide && (
+          <button
+            type="button"
+            onClick={onHide}
+            aria-label="Hide module mapper chips"
+            title="Hide mapper — shareable URL param mapperhidden=true"
+            className="flex items-center gap-1.5 px-3 py-2 border border-foreground/25 text-[9px] font-bold uppercase tracking-[0.16em] whitespace-nowrap text-muted-foreground hover:border-magenta/70 hover:text-magenta transition-colors backdrop-blur-md shrink-0"
+          >
+            <PanelLeftClose className="w-3.5 h-3.5" aria-hidden="true" />
+            HIDE
+          </button>
+        )}
       </nav>
     </>
   );

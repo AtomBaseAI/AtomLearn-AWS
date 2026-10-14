@@ -18,7 +18,8 @@ export interface ServiceMeta {
   index: string;
   name: string;
   short: string;
-  codename: string;
+  /** official AWS service abbreviation (e.g. IAM, S3, APIGW, CFN) */
+  abbr: string;
   category:
     | "GLOBAL"
     | "SECURITY"
@@ -43,7 +44,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "01",
     name: "GLOBAL INFRASTRUCTURE",
     short: "GLOBAL",
-    codename: "ORBITAL GRID",
+    abbr: "GI",
     category: "GLOBAL",
     tagline: "Regions. Availability Zones. Edge PoPs.",
     description:
@@ -66,9 +67,9 @@ export const SERVICES: ServiceMeta[] = [
   {
     id: "iam",
     index: "02",
-    name: "IDENTITY & ACCESS MGMT",
+    name: "IDENTITY & ACCESS MANAGEMENT",
     short: "IAM",
-    codename: "ACCESS MATRIX",
+    abbr: "IAM",
     category: "SECURITY",
     tagline: "Who can do what, on which resource.",
     description:
@@ -93,7 +94,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "03",
     name: "SIMPLE STORAGE SERVICE",
     short: "S3",
-    codename: "INFINITE VAULT",
+    abbr: "S3",
     category: "STORAGE",
     tagline: "11 nines of durability. Object storage at planet scale.",
     description:
@@ -118,7 +119,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "04",
     name: "VIRTUAL PRIVATE CLOUD",
     short: "VPC",
-    codename: "VOID NETWORK",
+    abbr: "VPC",
     category: "NETWORK",
     tagline: "Your private software-defined network.",
     description:
@@ -143,7 +144,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "05",
     name: "ELASTIC COMPUTE CLOUD",
     short: "EC2",
-    codename: "CORE FORGE",
+    abbr: "EC2",
     category: "COMPUTE",
     tagline: "Resizable virtual machines in minutes.",
     description:
@@ -168,7 +169,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "06",
     name: "ELASTIC LOAD BALANCING",
     short: "ELB",
-    codename: "TRAFFIC SPLITTER",
+    abbr: "ELB",
     category: "TRAFFIC",
     tagline: "Single DNS name. Infinite backends.",
     description:
@@ -193,7 +194,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "07",
     name: "AWS LAMBDA",
     short: "λ LAMBDA",
-    codename: "PHANTOM COMPUTE",
+    abbr: "LMD",
     category: "COMPUTE",
     tagline: "Zero servers. Pure events.",
     description:
@@ -218,7 +219,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "08",
     name: "API GATEWAY",
     short: "API GW",
-    codename: "GATE PROTOCOL",
+    abbr: "APIGW",
     category: "APP-NET",
     tagline: "The front door for your APIs.",
     description:
@@ -243,7 +244,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "09",
     name: "SIMPLE NOTIFICATION SERVICE",
     short: "SNS",
-    codename: "SIGNAL BURST",
+    abbr: "SNS",
     category: "APP-NET",
     tagline: "Publish once. Fan out everywhere.",
     description:
@@ -268,7 +269,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "10",
     name: "SIMPLE QUEUE SERVICE",
     short: "SQS",
-    codename: "MESSAGE BUFFER",
+    abbr: "SQS",
     category: "APP-NET",
     tagline: "Decouple everything. Lose nothing.",
     description:
@@ -293,7 +294,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "11",
     name: "CLOUDFRONT CDN",
     short: "CDN",
-    codename: "EDGE MIRROR",
+    abbr: "CF",
     category: "EDGE",
     tagline: "Content cached at the edge of the world.",
     description:
@@ -318,7 +319,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "12",
     name: "RELATIONAL DATABASE SERVICE",
     short: "RDS",
-    codename: "SYNC SHADOW",
+    abbr: "RDS",
     category: "DATA",
     tagline: "Managed SQL. Multi-AZ. Zero patching.",
     description:
@@ -343,7 +344,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "13",
     name: "AMAZON CLOUDWATCH",
     short: "CW",
-    codename: "SIGNAL SCOPE",
+    abbr: "CW",
     category: "OPS",
     tagline: "Metrics, alarms, actions. Total observability.",
     description:
@@ -368,7 +369,7 @@ export const SERVICES: ServiceMeta[] = [
     index: "14",
     name: "CONTAINERS — ECS · EKS · ECR",
     short: "CONTAINERS",
-    codename: "ORCHESTRATOR",
+    abbr: "ECS·EKS",
     category: "COMPUTE",
     tagline: "Ship containers, not servers. ECS, EKS, ECR.",
     description:
@@ -398,8 +399,105 @@ export const SERVICES: ServiceMeta[] = [
       { label: "DEPLOY", value: "ROLLING" },
     ],
   },
+  {
+    id: "cloudformation",
+    index: "15",
+    name: "AWS CLOUDFORMATION",
+    short: "CFN",
+    abbr: "CFN",
+    category: "OPS",
+    tagline: "Infrastructure as code. Declare it once. Deploy it everywhere.",
+    description:
+      "CloudFormation turns YAML/JSON templates into provisioned stacks — resolving dependency order, creating resources in parallel waves, detecting drift and rolling back failed deployments automatically. Deploy a stack live: create, update, rollback, drift-detect and roll out to every account with StackSets.",
+    iconId: "cloudformation",
+    docs: [
+      {
+        title: "AWS CloudFormation Documentation",
+        label: "AWS CloudFormation Documentation",
+        url: "https://docs.aws.amazon.com/cloudformation/",
+      },
+    ],
+    stats: [
+      { label: "TEMPLATE", value: "YAML/JSON" },
+      { label: "RESOURCE TYPES", value: "1500+" },
+      { label: "ROLLBACK", value: "AUTOMATIC" },
+      { label: "STACKSETS", value: "MULTI-ACCT" },
+    ],
+  },
 ];
 
 export const SERVICE_MAP: Record<string, ServiceMeta> = Object.fromEntries(
   SERVICES.map((s) => [s.id, s])
 );
+
+/**
+ * URL deep-link aliases for ?service=<key> — every entry resolves to a
+ * SERVICES id. Matching is done on a normalized key (lowercase, spaces /
+ * dashes / underscores / dots stripped), so "API Gateway", "api-gateway",
+ * "apigw" and "APIGW" all land on the API Gateway module.
+ */
+const SERVICE_ALIASES: Record<string, string> = {
+  // global infrastructure
+  gi: "global-infrastructure",
+  infra: "global-infrastructure",
+  globalinfra: "global-infrastructure",
+  globalinfrastructure: "global-infrastructure",
+  // identity
+  identity: "iam",
+  accessmanagement: "iam",
+  // lambda
+  lmd: "lambda",
+  fn: "lambda",
+  // api gateway
+  apigw: "api-gateway",
+  apigateway: "api-gateway",
+  gateway: "api-gateway",
+  // cloudfront
+  cdn: "cloudfront",
+  // cloudwatch
+  cloudwatchlogs: "cloudwatch",
+  monitoring: "cloudwatch",
+  // containers
+  ecs: "containers",
+  eks: "containers",
+  ecr: "containers",
+  k8s: "containers",
+  kubernetes: "containers",
+  docker: "containers",
+  // cloudformation
+  cfn: "cloudformation",
+  iaac: "cloudformation",
+  iac: "cloudformation",
+  stack: "cloudformation",
+  stacks: "cloudformation",
+};
+
+/** normalize a raw ?service= value: lowercase + strip separators */
+const normKey = (v: string) => v.toLowerCase().replace(/[\s_\-.]/g, "");
+
+/**
+ * Resolve a raw URL ?service= value to a SERVICES id (or null if unknown).
+ * Match order: exact id → normalized id → short / abbr / name → alias map.
+ */
+export function resolveServiceKey(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const raw2 = normKey(raw);
+  // exact + normalized id
+  if (SERVICE_MAP[raw]) return raw;
+  const byId = SERVICES.find((s) => normKey(s.id) === raw2);
+  if (byId) return byId.id;
+  // short display name, official abbreviation, full name
+  const byMeta = SERVICES.find(
+    (s) => normKey(s.short) === raw2 || normKey(s.abbr) === raw2 || normKey(s.name) === raw2
+  );
+  if (byMeta) return byMeta.id;
+  // curated alias table
+  return SERVICE_ALIASES[raw2] ?? null;
+}
+
+/** truthy values accepted for ?mapperhidden= */
+export function parseBoolParam(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const v = raw.toLowerCase();
+  return v === "true" || v === "1" || v === "yes" || v === "on";
+}

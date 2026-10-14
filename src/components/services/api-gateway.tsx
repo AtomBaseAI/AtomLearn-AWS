@@ -8,10 +8,12 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { ApigwUseCases } from "./api-gateway-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import { StatChip } from "@/components/shared/typography";
 import { APIGatewayIcon, LambdaIcon, S3Icon, ServerIcon, UserIcon } from "@/components/aws-icons";
-import { Zap, Gauge, Database, Timer } from "lucide-react";
+import { Zap, Gauge, Network, KeySquare, Database, Timer } from "lucide-react";
 
 type LogTone = "aws" | "mint" | "danger" | "magenta" | "dim";
 
@@ -47,8 +49,18 @@ const TICK_MS = 350;
 const BTN =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm";
 
+const APIGW_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Network },
+  { id: "THROTTLING", label: "THROTTLING & 429", num: "02", icon: Gauge },
+  { id: "USAGE_PLANS", label: "USAGE PLANS & KEYS", num: "03", icon: KeySquare },
+  { id: "CACHING", label: "EDGE CACHING", num: "04", icon: Zap },
+] as const satisfies readonly UcTabDef[];
+
+type ApigwTabId = (typeof APIGW_TABS)[number]["id"];
+
 export default function APIGatewayVisualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<ApigwTabId>("GENERAL");
   // control states (mirrored into refs so the sim loop stays stable)
   const [running, setRunning] = useState(false);
   const [stage, setStage] = useState<"dev" | "prod">("dev");
@@ -289,6 +301,15 @@ export default function APIGatewayVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={APIGW_TABS} active={tab} onChange={(t) => setTab(t as ApigwTabId)} label="API Gateway views" />
+
+      {tab !== "GENERAL" && (
+        <ApigwUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — flow view left, stats + controls rail right */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -601,6 +622,8 @@ export default function APIGatewayVisualizer() {
           — no Lambda transform required. HTTP APIs skip this feature entirely in exchange for speed.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -8,9 +8,11 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { S3UseCases } from "./s3-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import { S3Icon } from "@/components/aws-icons";
-import { CloudUpload, Layers, Package, Snowflake, Archive, Copy } from "lucide-react";
+import { CloudUpload, Layers, Package, Snowflake, Archive, Copy, Boxes, Database, History, Globe, FileJson, Recycle } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* S3 — INFINITE VAULT: lifecycle + replication simulator               */
@@ -57,8 +59,20 @@ const TIER_Y: Record<Tier, number> = {
   DEEP_ARCHIVE: 84.5,
 };
 
+const S3_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Boxes },
+  { id: "DATA_LAKE", label: "DATA LAKE USE CASE", num: "02", icon: Database },
+  { id: "VERSIONING", label: "VERSIONING", num: "03", icon: History },
+  { id: "HOSTING", label: "STATIC HOSTING", num: "04", icon: Globe },
+  { id: "POLICY", label: "BUCKET POLICY", num: "05", icon: FileJson },
+  { id: "LIFECYCLE", label: "LIFECYCLE", num: "06", icon: Recycle },
+] as const satisfies readonly UcTabDef[];
+
+type S3TabId = (typeof S3_TABS)[number]["id"];
+
 export default function S3Visualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<S3TabId>("GENERAL");
   const [objects, setObjects] = useState<S3Obj[]>([]);
   const [replica, setReplica] = useState<S3Obj[]>([]);
   const [days, setDays] = useState(0);
@@ -203,6 +217,15 @@ export default function S3Visualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={S3_TABS} active={tab} onChange={(t) => setTab(t as S3TabId)} label="S3 views" />
+
+      {tab !== "GENERAL" && (
+        <S3UseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — animation left, rail right */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -532,6 +555,8 @@ export default function S3Visualizer() {
           (e.g. 90 days for Glacier, 180 for Deep Archive) before moving hot data down.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

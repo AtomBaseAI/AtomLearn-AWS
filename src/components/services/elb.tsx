@@ -8,9 +8,11 @@ import { Callout } from "@/components/shared/callout";
 import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { ElbUseCases } from "./elb-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import { EC2Icon, ELBIcon, UserIcon } from "@/components/aws-icons";
-import { Lock, Route, Skull } from "lucide-react";
+import { GitBranch, HeartPulse, Lock, Network, Route, Skull, Split } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* types + static data                                                 */
@@ -59,12 +61,22 @@ const freshImg = (): Target[] => [
 const BTN =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm disabled:opacity-35 disabled:cursor-not-allowed transition-colors";
 
+const ELB_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Network },
+  { id: "PATH_ROUTING", label: "PATH ROUTING", num: "02", icon: Split },
+  { id: "HEALTH_FAILOVER", label: "HEALTH FAILOVER", num: "03", icon: HeartPulse },
+  { id: "BLUE_GREEN", label: "BLUE-GREEN", num: "04", icon: GitBranch },
+] as const satisfies readonly UcTabDef[];
+
+type ElbTabId = (typeof ELB_TABS)[number]["id"];
+
 /* ------------------------------------------------------------------ */
 /* ELB — TRAFFIC SPLITTER                                              */
 /* ------------------------------------------------------------------ */
 
 export default function ELBVisualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<ElbTabId>("GENERAL");
   const [targets, setTargets] = useState<Target[]>(freshWeb);
   const [imgTargets, setImgTargets] = useState<Target[]>(freshImg);
   const [total, setTotal] = useState(0);
@@ -210,10 +222,19 @@ export default function ELBVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={ELB_TABS} active={tab} onChange={(t) => setTab(t as ElbTabId)} label="ELB views" />
+
+      {tab !== "GENERAL" && (
+        <ElbUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — ANIMATION LEFT / RAIL RIGHT */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
-          title="FLOW VIEW // TRAFFIC SPLITTER"
+          title="FLOW VIEW // ELB"
           subtitle="USERS → ALB :443 → TARGET GROUPS — ROUND ROBIN"
           className="!p-0 overflow-hidden"
           delay={0.05}
@@ -528,6 +549,8 @@ export default function ELBVisualizer() {
           the target in connection draining — in-flight requests finish, new ones go elsewhere. Zero dropped requests.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

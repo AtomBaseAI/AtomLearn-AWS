@@ -100,7 +100,7 @@ export function Hero() {
                   key={`${dup}-${s.id}`}
                   className="mx-4 text-[8px] sm:text-[9px] uppercase tracking-[0.3em] text-muted-foreground"
                 >
-                  <span className="text-aws">◈</span> {s.name} <span className="text-magenta/70">::{s.codename}</span>
+                  <span className="text-aws">◈</span> {s.name} <span className="text-magenta/70">::{s.abbr}</span>
                 </span>
               ))}
             </span>

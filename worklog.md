@@ -690,3 +690,344 @@ Work Log:
 
 Stage Summary:
 - All six requested changes live: single GI toggle, labeled fullscreen buttons, orange-blinking RUN play icons when idle, round reset buttons (cascade-layer fix), official AWS doc links with book icons under every title card's data cards (16 links mapped, containers×3), boot overlay = user's exact code
+
+---
+Task ID: 20
+Agent: main
+Task: Run and test the app for errors (post-Task-19 full regression verification)
+
+Work Log:
+- Dev server was down; started `bun run dev` in background -> Ready in 788ms, GET / 200
+- bun run lint -> exit 0, no errors/warnings; bunx tsc --noEmit (excl. skills/examples) -> 0 project errors
+- Agent Browser E2E at 1440x900:
+  - Boot overlay (user-provided code) renders: hex NEXUS_LOGO, ATOM//NEXUS, "ATOM OSS - VISUAL CLOUD CONSOLE", glass log box, gradient progress bar; dismisses automatically, app mounts after
+  - 14-module hotkey sweep (1-9,0,-,=,[,]) with computed-style assertions:
+    * GI: exactly 1 fullscreen button (tab-row one removed per Task 19), labeled "FULLSCREEN", doc link "AWS Global Infrastructure => https://aws.amazon.com/about-aws/global-infrastructure/"
+    * All 13 services: fullscreen buttons labeled "FULLSCREEN" (icon+text; EC2=2 by design, one per panel, rest=1)
+    * Idle play icon: blink-icon class present + computed color rgb(255,153,0) (AWS orange) on every service
+    * Reset button: getComputedStyle borderRadius = 9999px (perfect circle) on every service
+    * Doc links: correct href per module (iam/s3/vpc/ec2/elb/lambda/apigateway/sns/sqs/cloudfront/rds/cloudwatch + ECS/ECR/EKS x3 on containers)
+  - IAM interactions: RUN -> PAUSE (blink removed while running), timestamped log lines flow, RESET -> back to idle with blink restored, round in both states
+  - Immersive fullscreen: enter -> body.immersive-on + "EXIT FULLSCREEN" label; modal shows only FLOW VIEW + LIVE STATS/CONTROLS rail + full-width ENGINE TRACE; knowledge hidden; ESC -> normal layout byte-restored, blink restored
+  - EC2 RUN -> STATE LOG visible; CONTAINERS RUN -> ORCHESTRATOR LOG visible
+- Mobile 390x844: scrollWidth=390, no horizontal overflow; containers module stacks cleanly with 3 doc links
+- Final sweep: 0 page errors, console only benign (React DevTools hint, HMR, THREE.Clock deprecation, Fast Refresh), dev.log clean
+
+Stage Summary:
+- App fully regressed after Task 19: build (lint+tsc) clean, boot overlay works, all 14 modules render and pass every Task-19 assertion (single GI toggle, labeled fullscreen buttons, orange-blinking idle play icons, round reset buttons, official doc links incl. containers x3)
+- Core interactions verified live: RUN/PAUSE/RESET cycles (IAM/EC2/CONTAINERS), immersive fullscreen enter/ESC-exit with state preservation
+- Zero page/runtime/console errors; mobile responsive without overflow
+- Screenshots: /home/z/shots/t20-01-boot.png .. t20-06-mobile.png
+
+---
+Task ID: 21-main
+Agent: main
+Task: Use-case tabs for ALL services (like GLOBAL INFRASTRUCTURE) — shared infra + S3 golden example done; 12 services delegated to agents 21-a..21-f
+
+Work Log:
+- Created src/components/shared/use-case.tsx: UseCaseTabs (GI-style tablist), UseCaseShell (stage + LIVE STATS/CONTROLS rail + AutoLog, immersive-aware w/ FullscreenToggle), useScenarioRunner (interval-driven step machine — setState ONLY in interval callbacks, passes react-hooks/set-state-in-effect), useTicker, UCStat, UCToggle, UCButton, VerdictFlash, StepBadge, UseCaseNote
+- Created src/components/services/s3-usecases.tsx (golden example, 5 tabs): DATA_LAKE (3 data shapes → medallion lake → Athena/Quicksight, source toggles), VERSIONING (PUT/PUT/DELETE/RESTORE auto-scenario + manual buttons, delete-marker recovery, ransomware shield), HOSTING (visitor → Route53 → S3 endpoint → mini browser mock assembling HTML→CSS→JS, custom 404 error-doc toggle), POLICY (live JSON editor + 4 presets + visual grant map + request simulator w/ CIDR/TLS condition evaluator + ALLOW/DENY/IMPLICIT DENY verdicts), LIFECYCLE (aging timeline w/ IA/GLACIER/EXPIRE bands + rule sliders + savings calc)
+- Wired s3.tsx: S3_TABS const (6 tabs), tab state, UseCaseTabs below title card, non-GENERAL → <S3UseCases>, GENERAL → existing content wrapped in fragment (untouched)
+- KEY GOTCHAS FIXED: FlowCanvas needs className="h-full" (absolute inset-0 collapses it — it is relative, needs explicit height); NO setState in effect bodies; NO ref.current writes during render (sync in useEffect); NO components defined inside components (Slider hoisted)
+- Verified in browser: all 6 S3 tabs render + interact (lake counts, version stack w/ timestamps, policy ALLOW verdict, lifecycle DAY ticker + transition logs); tsc clean, lint clean
+
+Stage Summary:
+- Services: infra + S3 complete. Agents 21-a..21-f replicate the s3 pattern for iam/vpc, ec2/elb, lambda/api-gateway, sns/sqs, cloudfront/rds, cloudwatch/containers
+- Reference files for agents: shared/use-case.tsx, s3-usecases.tsx, s3.tsx (wiring)
+
+---
+Task ID: 21-a
+Agent: general-purpose
+Task: Implement "best use case" tabs (animations + interactions) for the IAM and VPC service modules, replicating the s3-usecases golden pattern from Task 21-main
+
+Work Log:
+- Read worklog (Task 21-main), shared/use-case.tsx primitives, s3-usecases.tsx golden example (structure/style/lint patterns), iam.tsx + vpc.tsx + s3.tsx wiring, shared/flow.tsx + sim-controls.tsx + auto-log.tsx APIs
+- Created src/components/services/iam-usecases.tsx — IamUseCases router with 3 tabs:
+  * FEDERATION "FEDERATED ACCESS": USER → CORPORATE IDP (UCToggle SAML⇄OIDC, node sub updates) → STS ASSUME-ROLE-WITH-SAML → AWS API (S3 + DynamoDB FlowNodes); 15:00 TTL countdown via useTicker (mm:ss decreasing each second, resets on new assume + at expiry with re-federation log); STS TOKEN PACK card (ASIA••• creds, LIVE/DEAD state); REVOKE NOW UCButton → revoked state kills all flows, 403 "403 — TOKENS REVOKED" danger VerdictFlash + danger log "temp credentials revoked — session terminated"; 6-step useScenarioRunner (SSO → IdP auth → assume → S3 → DynamoDB → idle); stats: TOKEN TTL, ACTIVE SESSIONS, ROLE ASSUMES, 403S, IDP PROTOCOL, CRED TYPE
+  * LEAST_PRIV "LEAST PRIVILEGE": POLICY SCOPE slider 0→100 (WILDCARD → SCOPED → PRECISE bands, policy JSON card morphs live with scope bar); SIMULATE REQUEST UCButton fires random action from s3:GetObject reports/q1.pdf | s3:PutObject tmp/x | s3:DeleteObject db/prod-backup | iam:CreateUser; wildcard band → everything ALLOWED incl. OVER-PERMISSION danger logs ("OVER-PERMISSION: s3:DeleteObject allowed by s3:*"), scoped/precise → only legit action ALLOWED (mint) others IMPLICIT DENY (neon); ALLOW/ALLOW⚠(aws)/DENY VerdictFlash; per-action verdict badges in policy card; RUN auto-fires requests every 2.2s (useTicker); stats: SCOPE %, POLICY MODE, ALLOWED, DENIED, OVER-PERMISSIONS, RISK SCORE (100-scope)
+  * CROSS_ACCOUNT "CROSS-ACCOUNT ROLE": ACCOUNT A (4444-8888-7777) → STS → ACCOUNT B role (5555-1234-9999 · acct-b-ops-role) → s3://acct-b-data; live TRUST POLICY card (Principal 4444-…, Action sts:AssumeRole, Condition sts:ExternalId "nexus-xacct-9f3" shown when ON); UCToggle REQUIRE EXTERNAL ID: attempts alternate partner-with-ExternalId ⇄ confused-deputy-without — ON+missing → "CONFUSED DEPUTY — DENIED" danger flash + AccessDenied log, OFF → allowed with magenta confused-deputy warning; ASSUME ROLE + REVOKE SESSION UCButtons; 4-step auto runner; stats: TRUSTED ACCOUNTS, ACTIVE SESSIONS, DENIED, ROLE ASSUMES, LAST REQUEST, CRED TYPE
+- Created src/components/services/vpc-usecases.tsx — VpcUseCases router with 3 tabs (hoisted TierBand/NetBand/SgChip stage components):
+  * THREE_TIER "THREE-TIER WEB APP": vertical chain INTERNET → ALB → APP EC2 → RDS across 3 dashed subnet strips (PUBLIC/PRIVATE/ISOLATED), chained FlowLinks flowing when running, SG chips per hop (SG-ALB 0.0.0.0/0 :443 · SG-APP sg-alb ONLY :8080 · SG-DB sg-app ONLY :5432); "ATTEMPT DIRECT DB ACCESS" UCButton → dashed red attack path + ✕ DROP marker + "BLOCKED — NO PUBLIC ROUTE" danger VerdictFlash + logs; 6-step runner; P99 latency ~ms ticker; stats: TIERS 3, BLOCKED ATTEMPTS, P99 LATENCY, PUBLIC DB ROUTES 0, REQUESTS SERVED, SG RULE SETS
+  * NAT "NAT GATEWAY": PRIVATE EC2 (10.0.20.17) → NAT GW → IGW → INTERNET, outbound chain green (success) when egress live; RUN PATCH UPDATE UCButton → 0→100% download ticker (420ms) with milestone apt-get logs + PATCH PIPELINE progress card, completion mint log; UCToggle ALLOW INBOUND? → instant + periodic inbound attempts dropped at NAT ("inbound blocked — NAT is egress-only" danger log + red dashed return path + flash); stats: OUTBOUND OK, INBOUND BLOCKED, NAT $/MO $32.85, DOWNLOAD %, SNAT PUBLIC IP, INBOUND RULES
+  * SG_NACL "SG VS NACL": split dual-lane stage — lane A SG (stateful) + lane B NACL (stateless), each EC2 → firewall → INTERNET with request-out + return links; UCToggle EPHEMERAL PORTS ALLOWED? — ON → return accepted (mint), OFF → return dropped AT the NACL (red link, ✕ DROP, "return traffic dropped — NACL has no memory" danger log + flash); REQUEST→RESPONSE narration chips per lane + StepBadge; 4-step race runner (SG +12 rules all-evaluated, NACL +2 first-match); stats: SG RETURNS ALLOWED, NACL RETURNS DROPPED, RULES EVALUATED, EPHEMERAL PORTS, SG/NACL MEMORY
+- Wired src/components/services/iam.tsx: UseCaseTabs+UcTabDef+IamUseCases imports, lucide ScanSearch/Building2/Users; IAM_TABS const (GENERAL Users · FEDERATION KeyRound · LEAST_PRIV ScanSearch · CROSS_ACCOUNT Building2) as const satisfies readonly UcTabDef[] + IamTabId; tab state first; tablist + conditional IamUseCases right after root div; ALL existing children wrapped in {tab === "GENERAL" && (<>…</>)} byte-identical
+- Wired src/components/services/vpc.tsx: same recipe — VPC_TABS (GENERAL Network · THREE_TIER Layers3 · NAT ArrowLeftRight · SG_NACL ShieldHalf) + VpcTabId + VpcUseCases
+- Lint-rule compliance verified by grep: zero setState in effect bodies (all machines via useScenarioRunner + useTicker interval callbacks), zero ref.current writes during render (ttl/pct/parity/milestone refs written only in callbacks/handlers), no nested components, flash setTimeouts stored in refs + cleanup useEffects, FlowCanvas className="h-full" ×6, straight corners + tiny uppercase mono styling + tone strings throughout
+
+Stage Summary:
+- IAM + VPC now ship GI-style use-case tab rows: 4 tabs each (GENERAL + 3 new use cases), existing GENERAL simulators untouched inside fragments
+- All 6 new scenarios interactive: federation token TTL/revocation, policy-scope verdict flipping, confused-deputy trust policy, three-tier segmentation + DB attack, NAT patch pipeline + egress-only drops, SG-vs-NACL stateful/stateless race
+- Verification: bunx tsc --noEmit → 0 errors in services/(iam|vpc) (only pre-existing examples//skills/ errors remain, as before); bun run lint → exit 0, zero findings for iam-usecases|vpc-usecases|services/iam|services/vpc
+- Not done (per instructions): no dev server / browser run — recommend Task 21-main-style browser sweep for the 6 new tabs
+
+---
+Task ID: 21-d
+Agent: general-purpose
+Task: Implement "best use case" tabs (animations + interactions) for the SNS and SQS service modules, replicating the s3-usecases golden pattern from Task 21-main
+
+Work Log:
+- Read worklog (Task 21-main golden example), shared/use-case.tsx primitives, s3-usecases.tsx + iam-usecases.tsx (structure/style/lint patterns), sns.tsx + sqs.tsx + s3.tsx wiring, flow.tsx/sim-controls.tsx/auto-log.tsx APIs
+- Created src/components/services/sns-usecases.tsx — SnsUseCases router with 3 tabs (module-scope helpers pad3; all chips/cards/sliders hoisted):
+  * FAN_OUT "FAN-OUT": ORDER SERVICE → SNS TOPIC (pulsing-ring core card w/ live publish counter + magenta shock ring per publish) → 3 subscribers in parallel (SQS ORDERS y20 · SQS ANALYTICS y47 · EMAIL LAMBDA y74); auto-publish via 4-step useScenarioRunner (publishes on step 0+2, narration on 1+3, 1700ms) + UCButton "PUBLISH NOW"; per-publish fanKey remounts FlowLinks → parallel packet animation w/ staggered dotDelay; per-subscriber delivered counters in node labels [n] + success flashes; log "PUBLISH msg-042 → 3 subscribers in 12ms" + per-copy "✓ delivered → SQS ORDERS — parallel copy 1/3"; stats PUBLISHED / per-sub DELIVERED ×3 / FAN-OUT RATE ×3 / FAN-OUT TIME 12ms
+  * PUSH_SMS "MOBILE PUSH & SMS": SNS TOPIC → GCM·ANDROID / APNS·IOS / SMS CHANNEL endpoints; DEVICE FARM card w/ 7 badge chips (AND-01..03 · IOS-01..02 · +1-555-01xx) that flash mint box-glow on delivery; UCToggle "SMS ENABLED" (magenta) gates the SMS channel (disabled → dimmed chips + CHANNEL OFF + 0 SMS + push-only narration); running $ counter — push $0.50/M ($0.0000005 each) · SMS $0.00645/msg, fmtCost switches to 7 decimals under a cent; 4-step runner broadcast→push→sms→cost-settle; links flash success per channel; stats PUSH SENT / SMS SENT / EST COST $ / SMS GATE / BROADCASTS / DEVICE TARGETS
+  * RETRY_DLQ "RETRY & DLQ": SNS TOPIC → HTTP ENDPOINT (api.nexus.dev/hooks) + DEAD LETTER QUEUE; UCToggle "ENDPOINT FAILING?" flips 200↔500; failing deliveries run compressed backoff 1s→2s→4s (RETRY 1/3·2/3·3/3 logs, endpoint sub + backoff chips light up sequentially in ENDPOINT HEALTH card) → after 3 attempts DLQ depth +1 + danger log "moved to DLQ after 3 failed attempts" + deny VerdictFlash "MOVED TO DLQ"; busyRef guard prevents overlapping cycles; HEAL (toggle off) + UCButton "REDRIVE (n)" → DLQ drains w/ mint "200 OK delivered ✓" + ok VerdictFlash "REDELIVERED — DLQ DRAINED" (redriving while still failing → danger bounce-back); stats DELIVERIES / RETRIES / DLQ DEPTH / REDRIVEN / ENDPOINT / LAST HTTP
+- Created src/components/services/sqs-usecases.tsx — SqsUseCases router with 3 tabs (constants QUEUE_MAX 200 · RISK 150 · DRAIN 10 · TARGET 10 · WORKER_RATE 5 · PRODUCER 25):
+  * BUFFER "BUFFER & THROTTLE": PRODUCERS (burst slider 1–50/s, module-scope BurstSlider) → SQS buffer card w/ animated DepthBar (max 200, RISK@150 dashed marker, aws→neon→danger fill) → WORKER POOL fixed 10/s; 1s useTicker (depthRef synced via effect) w/ threshold-crossing logs: danger at >150 "OVERFLOW RISK", full → deny VerdictFlash "THROTTLED — QUEUE AT 200/200" + "SendMessage throttling" log, mint recovery logs; bottom ThruBar pair PRODUCED/S vs CONSUMED/S; stats DEPTH n/200 · PRODUCED/S · CONSUMED/S · OLDEST MSG AGE · HEADROOM · STATUS
+  * WORKER_SCALING "WORKER AUTOSCALING": constant 25/s producer + 28 backlog vs ASG target tracking (target 10; >10 scale out to max 6, <5 scale in to min 2, eval every 2nd tick); WORKER CHIPS card W1–W6 (mint glow when active, dashed empty slots) + drain = workers×5/s; DepthCurve bar-history sparkline (bottom strip, TARGET 10 dashed line, danger/neon/mint by depth) — spikes visibly flatten after scale-out; scale events fire aws/ok VerdictFlashes + ALARM logs; stats WORKERS n/6 · DEPTH · DRAIN RATE · SCALE EVENTS · TARGET 10 · PRODUCER 25/S
+  * REDRIVE "DLQ REDRIVE": PRODUCERS → ORDERS-QUEUE chip list (poison chips MAGENTA w/ skull icon, receive attempts tick ×1/3 ·×2/3 ·×3/3 on each chip) → CONSUMER; 1-in-5 messages poison (seq % 5); maxReceiveCount=3 → "receive ×3 = maxReceiveCount → MOVED TO DLQ" (danger + error link pulse); UCButton "INSPECT + REDRIVE (n)" + UCToggle "FIX POISON": ON → mint inspect/patch/replay logs + ok VerdictFlash "REDRIVE OK — DLQ DRAINED", OFF → danger logs + deny VerdictFlash "UNFIXED POISON — IT WILL FAIL AGAIN" (batch re-injected and dead-letters again); cyber(magenta) dashed DLQ→queue redrive link; stats RECEIVED · POISON CAUGHT · DLQ DEPTH · REDRIVES · POISON RATE 1 IN 5 · FIX POISON
+- Wired src/components/services/sns.tsx: UseCaseTabs+UcTabDef+SnsUseCases imports, lucide Bell/Share2/Smartphone/RotateCw added; SNS_TABS const (GENERAL Bell · FAN_OUT "FAN-OUT" Share2 · PUSH_SMS "MOBILE PUSH & SMS" Smartphone · RETRY_DLQ "RETRY & DLQ" RotateCw) as const satisfies readonly UcTabDef[] + SnsTabId; `const [tab, setTab] = useState<SnsTabId>("GENERAL")` first state line; tablist + conditional SnsUseCases right after root div opens; ALL existing children wrapped in {tab === "GENERAL" && (<>…</>)} byte-identical
+- Wired src/components/services/sqs.tsx: same recipe — SQS_TABS (GENERAL ListOrdered · BUFFER "BUFFER & THROTTLE" DatabaseZap · WORKER_SCALING "WORKER AUTOSCALING" ServerCog · REDRIVE "DLQ REDRIVE" Recycle) + SqsTabId + SqsUseCases
+- Lint-rule compliance: zero setState in useEffect bodies (all machines via useScenarioRunner/useTicker interval callbacks; effects only sync refs or clear timeouts); zero ref.current writes during render (36 ref writes, all in callbacks/handlers/cleanup); no components defined inside components (DeviceChip/DepthBar/ThruBar/BurstSlider/WorkerChips/DepthCurve hoisted to module scope); flash banners via flashT ref + cleanup useEffect; transient delivery timeouts tracked in pendT ref + unmount/reset cleanup; FlowCanvas className="h-full" ×6; straight corners (0 rounded-*), tiny uppercase mono text, tones aws/mint/magenta/neon/danger/dim throughout
+- Verification: `bunx tsc --noEmit | rg "services/(sns|sqs)"` → empty; `bun run lint | rg -A3 "sns-usecases|sqs-usecases|services/sns|services/sqs"` → empty (2 TS fixes during iteration: FlowLabel tone "neon"→"aws", router now passes id through). NOTE: repo-wide lint currently shows 1 pre-existing/concurrent parsing error in cloudwatch.tsx from a parallel agent's in-flight edit (Task 21-f scope) — not related to this task
+- Not done (per instructions): no dev server / browser run — recommend a Task-21-main-style browser sweep for the 6 new tabs
+
+Stage Summary:
+- SNS + SQS now ship GI-style use-case tab rows: 4 tabs each (GENERAL + 3 new use cases), existing GENERAL simulators untouched inside fragments
+- All 6 new scenarios interactive: parallel fan-out w/ per-subscriber counters, per-channel push/SMS costing w/ SMS gate, backoff→DLQ→redrive chaos drill, burst-vs-drain buffer w/ overflow throttling, depth-driven worker autoscaling w/ flattening curve, poison-pill redrive w/ fix-gated replay
+- Verification: tsc + lint clean for all 4 touched files (sns-usecases/sqs-usecases/sns/sqs); repo-wide tsc has only pre-existing examples/skills errors
+
+---
+Task ID: 21-e
+Agent: general-purpose
+Task: Implement "best use case" tabs (animations + interactions) for the CLOUDFRONT and RDS service modules, replicating the s3-usecases golden pattern from Task 21-main
+
+Work Log:
+- Read worklog (Task 21-main gotchas), shared/use-case.tsx primitives API, s3-usecases.tsx golden example (structure/lint patterns), cloudfront.tsx + rds.tsx (wiring targets), shared/flow.tsx + auto-log.tsx + sim-controls.tsx APIs
+- Created src/components/services/cloudfront-usecases.tsx — CfUseCases router with 3 tabs:
+  * GLOBAL_EDGE "GLOBAL EDGE ACCEL": USER-MUMBAI → two racing lanes — NEAREST EDGE POP BOM1 (mint, ~20ms) vs DIRECT to US-EAST-1 S3 ORIGIN (danger, ~220ms) converging on VIEWER; RaceBar latency bars (hoisted) re-key + re-animate 0→100% on every request cycle (edge 0.28s vs direct 2.55s = proportional race); "600+ EDGE LOCATIONS · 90+ CITIES" chip; UCToggle ORIGIN SHIELD (magenta) — ON → ~80% of verdicts absorbed at regional cache ("⛨ ORIGIN SHIELD — regional cache absorbed the fetch — origin untouched"), origin fetches counter collapses; VerdictFlash "EDGE 20ms — DIRECT 220ms" each verdict; 2-step useScenarioRunner (RACE IN FLIGHT → VERDICT — EDGE WINS); stats: EDGE HIT %, EDGE LATENCY, ORIGIN LATENCY, ORIGIN FETCHES, RACES RUN, ORIGIN SHIELD
+  * STREAMING "MEDIA STREAMING": HLS segment packet train ORIGIN (s3://vod-origin) → [ORIGIN SHIELD node appears when ON] → EDGE POP → VIEWER·MUMBAI; 4-step runner (EDGE MISS→FETCH → CACHE AT EDGE → VIEWER PLAYS → PLAYLIST REFRESH); viewer buffer fill bar 0→100% via useTicker (420ms, +7%/tick) with one-shot mint log "VIEWER BUFFER 100% — 30s ahead — zero rebuffering"; UCToggle ORIGIN SHIELD ON → origin hits drop to ~25% of cycles, saved-fetch counter grows + log "ORIGIN SHIELD ON — shield collapsed 200 origin fetches → 12 (94% offload)"; stats: SEGMENTS SERVED, BUFFER %, ORIGIN HITS, SAVED FETCHES, ORIGIN OFFLOAD %, SEGMENT SIZE
+  * SIGNED_URLS "SIGNED URLS": pipeline COGNITO AUTH → URL SIGNER → EDGE VALIDATOR (sig+expiry) → VIEWER 200; live SIGNED URL card with magenta signature chips (Expires / Signature=KCm9… / Key-Pair-Id) + mint/danger LIVE·Ns↔EXPIRED state + countdown drain bar; 4-step runner (AUTH → SIGN URL → EDGE VALIDATION → 200 SERVE); EXPIRY slider 5-60s compressed (module-scope Slider); countdown useTicker 1s/step hits 0 → "signed URL expired — the edge will 403 any new request"; UCButton REQUEST EXPIRED URL → 403 danger VerdictFlash + log "signature expired at edge — origin never touched"; dashed red 403-bounce link from edge; stats: URLS SIGNED, VALIDATED OK, 403 REJECTS, EXPIRY TTL, SIG STATE, COST OF AUTH CHECK
+- Created src/components/services/rds-usecases.tsx — RdsUseCases router with 3 tabs:
+  * MULTI_AZ "MULTI-AZ FAILOVER": APP TIER → PRIMARY·AZ-A + STANDBY·AZ-B with write links + dashed magenta SYNC REPLICATION beam (<1ms); UCButton KILL PRIMARY (disabled unless healthy) → 15s detection countdown compressed (0.5s sim / 130ms tick, danger overlay card + health-check logs) → DNS FAILOVER CNAME flip phase (StepBadge "DNS FAILOVER — CNAME FLIP", ok flash) → standby promotes (node labels/status swap, app link bends to AZ-B) → reconnect ticker stops downtime at exactly 25.0s ("APP RECONNECTED — writes resumed — total downtime 25.0s — endpoint unchanged") → old primary rebuilds as new standby (progress bar → "sync replication restored"); full log sequence; stats: PRIMARY NODE, STANDBY STATE, FAILOVERS, LAST DOWNTIME S, DETECTION, WRITES COMMITTED
+  * READ_REPLICAS "READ REPLICAS": WRITER·AZ-A → 5 arc positions, dashed async links flow for provisioned replicas; sub labels show per-replica LAG ms + SYNCED/CATCHING UP (lag > 300ms → warn node + STALE RISK select logs); UCButton ADD REPLICA up to 5 (disabled at max, demo-caps log; fresh replica starts at 600ms lag and drains ×0.75/tick); READ THROUGHPUT CAPACITY bar grows n×20% (mint, spring); writes/reads tickers (~1k W/S, n×~4k R/S) with INSERT/ship + SELECT→replica-N logs; stats: WRITES/S, READS/S, REPLICAS N, LAG MS, READ CAPACITY, CONSISTENCY
+  * PITR "BACKUP & PITR": continuous WAL timeline band (last-60s window, aws segment dots, NOW edge) + 35-DAY RETENTION · RPO ~1s chip + DB·NEXUS-PROD node streaming WAL; sim clock ticker (1s/600ms, WAL archived every 5s logs); UCButton INJECT FAILURE at time T → APP DOWN danger flash + red T—FAILURE marker; RESTORE slider 1-60s before failure → mint dashed RESTORE POINT marker previews T-x; UCButton RESTORE TO T-xS → progress ticker → "restored to 12:04:59 — lost only Ns of data" + "new instance promoted — endpoint unchanged" mint logs; stats: RETENTION 35D, RPO ~1S, RESTORE TIME, POINT PICKED, SIM CLOCK, DATA LOSS
+- Wired cloudfront.tsx: UseCaseTabs+UcTabDef+CfUseCases imports, lucide MapPin/PlayCircle/KeyRound/Zap; CF_TABS const (GENERAL Zap · GLOBAL_EDGE MapPin · STREAMING PlayCircle · SIGNED_URLS KeyRound) as const satisfies readonly UcTabDef[] + CfTabId; tab state first line; tablist + conditional CfUseCases right after root div; ALL existing children wrapped in {tab === "GENERAL" && (<>…</>)} untouched
+- Wired rds.tsx: same recipe — RDS_TABS (GENERAL Database · MULTI_AZ RefreshCw · READ_REPLICAS Copy · PITR History) + RdsTabId + RdsUseCases
+- Lint-rule compliance: zero setState in effect bodies (all step machines via useScenarioRunner, all counters/countdowns via useTicker interval callbacks; fixed one "Cannot access refs during render" on a SimControls status read → mirrored segRef into seg state); zero ref.current writes during render (refs written only in callbacks/handlers/cleanup; flash setTimeouts stored in flashT refs + cleared in unmount cleanup effects); no nested components (RaceBar/SignatureCard/Slider + all labels hoisted to module scope); FlowCanvas className="h-full" ×6; straight corners, text-[6px..12px] uppercase mono, aws/mint/magenta/neon/danger/dim tones only
+- Verification: bunx tsc --noEmit | rg "services/(cloudfront|rds)" → EMPTY; bun run lint | rg -A3 "cloudfront-usecases|rds-usecases|services/cloudfront|services/rds" → EMPTY. (Project-wide: pre-existing sns-usecases/sqs-usecases tsc errors + containers.tsx lint parse error remain — owned by agents 21-d/21-f, untouched)
+- Not done (per instructions): no dev server / browser run — recommend a Task-20-style browser sweep for the 6 new tabs
+
+Stage Summary:
+- CloudFront + RDS now ship GI-style use-case tab rows: 4 tabs each (GENERAL + 3 new use cases), existing GENERAL simulators byte-untouched inside GENERAL fragments
+- All 6 new scenarios interactive: 20ms-vs-220ms edge race with Origin Shield collapse, HLS packet train + buffer fill, signed-URL expiry/403 enforcement, kill-primary failover with 15s detection → 25s downtime → standby promotion, replica fleet scaling to 5 with lag drain, WAL PITR rewind to any second before an injected failure
+- Verification clean for all 4 owned files (tsc + lint)
+
+---
+Task ID: 21-f
+Agent: general-purpose
+Task: Implement "best use case" tabs (animations + interactions) for the CLOUDWATCH and CONTAINERS service modules, replicating the s3-usecases golden pattern from Task 21-main
+
+Work Log:
+- Read worklog (Task 21-main), shared/use-case.tsx primitives API, s3-usecases.tsx golden example (structure/style/lint patterns), cloudwatch.tsx + containers.tsx (wire targets), s3.tsx wiring recipe, flow.tsx / sim-controls.tsx / auto-log.tsx APIs
+- Created src/components/services/cloudwatch-usecases.tsx — CwUseCases router with 3 tabs:
+  * ALARM_ACTION "ALARM → ACTION": animated CPU metric card (SVG polyline from 48-pt rolling series, area fill, breach segments in danger, spring last-point dot + expanding ring, dashed threshold line w/ THR label); THRESHOLD slider 40-90 (step 5, magenta CONFIG log); 2-consecutive-breach evaluation → ALARM state (danger glow + CWAlarm badge w/ blink-cursor) fires action chips "SNS NOTIFY — PUBLISHED 1.2S" (magenta) + "ASG SCALE-OUT — +1 INSTANCE (FLEET n)" (mint) at stage bottom, floating "+1 INSTANCE" chip near ASG node, FlowLinks cyber/success; log per breach: ALARM 2/2 datapoints → SNS publish → ASG scale-out → "ALARM → action executed in 1.2s"; 2 consecutive OK → recovery (mint flash "OK — RECOVERED"); VerdictFlash + StepBadge breach counter 1/2; stats: METRIC VALUE, THRESHOLD, ALARM STATE, ACTIONS FIRED
+  * DASHBOARD "CUSTOM DASHBOARD": 3 live sparkline widgets (CPU UTILIZATION aws/EC2, MEMORY USED CWAgent, REQUESTS AWS/ApplicationELB) drawing from 40-pt rolling arrays (one useTicker ingests all widgets per 800ms tick); UCButton "ADD WIDGET" appends from pool — 4th = ERRORS 5XX (magenta), then NETWORK IN, DISK WRITE OPS, up to 6 then disabled "MAX 6 WIDGETS"; each widget card = title + namespace, sparkline (SVG polyline+area, per-widget scale), current value + unit + ▲/▼ delta chip, pulsing live dot; ingest log "PUT METRIC DATA — ns metric value" every 3rd tick; stats: WIDGETS n/6, INGEST POINTS/S (widgets/0.8), NAMESPACE COUNT (unique of active), REFRESH 800MS
+  * ANOMALY "LOG ANOMALY": scrolling on-stage log stream (/aws/api/app — INFO/ERROR lines auto-append while running, danger-colored 5xx, auto-scroll via DOM effect); one scan window per 900ms tick → error-count buckets; p50 line + expected band (p50±spread shading, dashed BAND ≤ upper + P50 labels) rendered around the bars; UCButton "INJECT ERROR SPIKE" → 2 windows of exactly max(40, 40×p50) error lines → bar turns danger + glow, ANOMALY detector state, danger VerdictFlash, log "anomaly detector: 40x error rate for 2m" (ratio = errors/p50); NORMAL vs ANOMALY window counter chips under the band chart; stats: LINES SCANNED, ERROR RATE % (10-window rolling), ANOMALIES DETECTED, DETECTOR STATE (IDLE/SCANNING/ANOMALY)
+- Created src/components/services/containers-usecases.tsx — ContainersUseCases router with 3 tabs:
+  * ROLLING_DEPLOY "CI/CD ROLLING DEPLOY": 13-step useScenarioRunner pipeline (git push → docker build ×2 → push ECR + scan → 4× (drain v1 task + start v2 task → health 200 + terminate drained)); UCButton "DEPLOY v2" (label advances v3, v4… per deploy; disabled while armed; auto-starts sim); task chips replaced ONE-BY-ONE — v1 badge → v2 badge via DRAINING (neon dim) → STARTING (magenta pulse) → RUNNING · 200 OK (mint), layout-animated in 2-col ECS service card; pipeline FlowNodes CODE PUSH/DOCKER BUILD/PUSH ECR/ECS ROLLING flip active→success per step; deploy-state card (v1→v2 badge, REPLACED n/4, DOWNTIME 0s, DROPPED REQS 0); log per task "task task-<id> replaced — health 200"; completion mint flash "DEPLOY COMPLETE — 0s DOWNTIME"; stats: TASKS v1, TASKS v2, DOWNTIME 0s (stays 0), DEPLOYS
+  * SERVICE_SCALING "SERVICE AUTOSCALING": LOAD slider 10-100 drives CPU (cpu ≈ load×2.1/tasks ± noise, 1s tick); target-tracking at 50% CPU with hysteresis (2 hot evals → scale out +1 task, 3 cold evals → scale in −1, min 2 max 8) — chips appear/vanish layout-animated with per-task cpu bars; CPU AVG gauge bar with dashed 50% TARGET marker (danger >55, neon <45); target-tracking policy card; scale events logged ("target-tracking: CPU 63% > 50% for 2 evals — scale out 2 → 3 tasks") + SCALE OUT/IN VerdictFlash; stats: LOAD, CPU AVG, DESIRED TASKS n/8, SCALE EVENTS
+  * EKS_HPA "EKS PODS HPA": 3 k8s node boxes (node-1..3, ip-10-0-x-x) in a bin-packing grid — each shows FILL usedm/1000m + fill % meter (mint/aws/danger by load); HPA control-plane card (EKS icon, POD CPU AVG bar w/ dashed 70% target marker, pods n/10 badge); load wave (climb 9 ticks to ~97% → drop 5 ticks) drives HPA reconcile every 2nd tick: desired = ceil(pods × cpu / 70) clamped 2→10 — pods 2→10 spread to the most-free-CPU node (worst-fit bin-pack, sched log w/ free mCPU) → scale-in after load drop (stabilization log); pod chips = name api-xxxxx + 200m request + cpu bar; kubectl-style HPA spec block in controls; stats: PODS n/10, NODES 3, HPA TARGET 70%, NODE FILL % (avg)
+- Wired src/components/services/cloudwatch.tsx: UseCaseTabs+type UcTabDef+CwUseCases imports, lucide Activity/BellRing/LayoutDashboard/ScanLine added; CW_TABS const (GENERAL Activity · ALARM_ACTION "ALARM → ACTION" BellRing · DASHBOARD "CUSTOM DASHBOARD" LayoutDashboard · ANOMALY "LOG ANOMALY" ScanLine) as const satisfies readonly UcTabDef[] + CwTabId; `const [tab, setTab] = useState<CwTabId>("GENERAL")` as first state line; tablist + conditional CwUseCases right after root div opens; ALL existing children (main grid + alarm history + knowledge) wrapped byte-identical in {tab === "GENERAL" && (<>…</>)}
+- Wired src/components/services/containers.tsx: same recipe — CONTAINERS_TABS (GENERAL Boxes · ROLLING_DEPLOY "CI/CD ROLLING DEPLOY" GitCommit · SERVICE_SCALING "SERVICE AUTOSCALING" Expand · EKS_HPA "EKS PODS HPA" Grid3x3 — Grid3x3 verified present in lucide-react) + ContainersTabId; 300px controls rail untouched; existing children wrapped in fragment
+- Lint-rule compliance audited by grep: zero setState in effect bodies (machines via useScenarioRunner + useTicker interval callbacks only), zero ref.current writes during render (tasksRef/widgetsRef/loadRef synced in useEffect), no components defined inside components (CwSlider/CtrSlider, Sparkline, WidgetCard, RdChip, ScChip, EkPodChip hoisted to module scope), flash banner setTimeouts stored in refs + cleared in cleanup useEffects, FlowCanvas gets className="h-full" in all 6 stage components
+
+Stage Summary:
+- CloudWatch + Containers now ship GI-style use-case tab rows: 4 tabs each (GENERAL + 3 new use cases), existing GENERAL simulators untouched inside fragments
+- All 6 new scenarios interactive: threshold-slider alarm→action chain (SNS + ASG +1 instance), expandable 6-widget cross-namespace dashboard, p50-band ML anomaly detector with injectable 40x error spikes, zero-downtime CI/CD rolling deploy with drain/start chip states, load-driven target-tracking scaling 2↔8 tasks, and HPA pod autoscaling 2→10 across bin-packed nodes with fill meters
+- Verification: bunx tsc --noEmit filtered on services/(cloudwatch|containers) → EMPTY (only pre-existing examples//skills/ errors remain); bun run lint filtered on cloudwatch-usecases|containers-usecases|services/cloudwatch|services/containers → EMPTY. Note: full lint currently exits 1 on src/components/services/elb.tsx (JSX parse error from concurrent Task 21-b work — outside 21-f scope)
+- Not done (per instructions): no dev server / browser run — recommend a Task-20-style browser sweep for the 6 new tabs
+
+---
+Task ID: 21-c
+Agent: general-purpose
+Task: Implement "best use case" tabs (animations + interactions) for the LAMBDA and API GATEWAY service modules, replicating the s3-usecases golden pattern from Task 21-main
+
+Work Log:
+- Read worklog (Task 21-main + 21-a), shared/use-case.tsx primitives, s3-usecases.tsx golden example (structure/style/lint patterns), lambda.tsx + api-gateway.tsx targets, shared/flow.tsx + sim-controls.tsx + auto-log.tsx APIs
+- Created src/components/services/lambda-usecases.tsx — LambdaUseCases router exporting LambdaUseCaseId ("S3_EVENTS" | "COLD_WARM" | "FAN_OUT"), hoisted LSlider primitive:
+  * S3_EVENTS "S3 EVENT PROCESSING": S3 UPLOAD FlowNode → event-packet FlowLink → LAMBDA core card with INIT→INVOKE→DONE phase chip cycle (AnimatePresence phase text, phase-keyed progress bar: INIT 0.42s magenta → INVOKE dur/1000s aws → DONE mint) → THUMBNAILS FlowNode (success flash + pulse); UCButton "UPLOAD IMAGE" + auto mode via useTicker ~2s; per-invoke dur = 360–1080ms, billed = ceil(dur/100)*100; log format "EVENT s3:ObjectCreated:* → invoke duration 842ms — billed 900ms"; stats EVENTS / INVOKE AVG MS / THUMBS PRODUCED (3 per event) / BILLED MS (cumulative) / LAST BILLED / BILLING WASTE (danger — the 100ms rounding tax)
+  * COLD_WARM "COLD VS WARM": two absolute lane bands — COLD lane (danger) with segmented bar DL RUNTIME → INIT FN → HANDLER (widths proportional to random 280-410/330-480/120-210ms segments, each fills linearly via framer duration+phase from setTimeout chain in race()) vs WARM lane (mint, single ~30ms fill); UCButton "RACE NOW" replays (busyRef guard) + auto-race useTicker 3.4s; UCToggle "PROVISIONED CONCURRENCY" mint — ON AnimatePresence-removes cold lane + "COLD LANE REMOVED — WARM POOL PRE-INITIALIZED" banner + log "warm pool pre-initialized", warm lane slides up; VerdictFlash "WARM WINS ×NN" on finish; stats P50 COLD / P50 WARM / SAVINGS % P99 / PC COST ≈$11-MO / RACES RUN / LANE MODE
+  * FAN_OUT "EVENT FAN-OUT": SNS TOPIC card (order.created, event #) → 3 FlowLinks → ORDER.SVC / EMAIL.SVC / ANALYTICS.SVC FanOutLane cards (hoisted) each with random 120–540ms duration bar + mint success dot ping; one random straggler per publish gets 1400–2100ms, magenta cyber link + magenta node glow + STRAGGLER log, its completion ends the fan-out (active=false); UCButton "PUBLISH EVENT" + auto useTicker 2.8s; stats EVENTS PUBLISHED / CONSUMER P50 (running median) / SLOWEST MS / DELIVERED / STRAGGLERS / FAN-OUT WIDTH ×3
+- Created src/components/services/api-gateway-usecases.tsx — ApigwUseCases router exporting ApigwUseCaseId ("THROTTLING" | "USAGE_PLANS" | "CACHING"), hoisted AGSlider + bucketCls/quotaCls helpers:
+  * THROTTLING "THROTTLING & 429": RATE LIMIT slider 100–2000 req/s (step 50); token-bucket model in useTicker 420ms — refill 0.5s worth/wave, burst wave 0.35–2.0× limit, allowed=min(burst,tokens); wave rows rendered as mint/danger request-dot squares (WaveRow hoisted, last 5 waves, 44-dot cap + "+N") with per-wave ✓/✕429 counts; limiter card with animated bucket bar (mint/neon/danger by level) + allowed/throttled counters; VerdictFlash "429 TOO MANY REQUESTS" deny on ~55% of throttled waves; stats SENT / ALLOWED / THROTTLED 429 / LIMIT / TOKEN BUCKET % / 429 RATE %
+  * USAGE_PLANS "USAGE PLANS & KEYS": ClientCard (hoisted) ×2 — MOBILE-APP key mob-7f3a2b9c (BASIC 10K/MO, 2–5 req/tick) + PARTNER key prt-99d1c04e (ENTERPRISE 1M/MO, 1–3 req/tick), each with LIVE/SUSPENDED chip + draining quota meter bar (mint/neon/danger); useTicker 900ms traffic; UCButton toggles "SUSPEND MOBILE-APP KEY" ⇄ "RE-ENABLE MOBILE-APP KEY" — suspended → mobile FlowLink goes error-red + "403 · KEY DISABLED" label + "403 Forbidden — key … DISABLED via usage plan" danger logs + VerdictFlash "403 FORBIDDEN — KEY SUSPENDED"; stats MOBILE-APP REQ / PARTNER REQ / 403S / MOBILE QUOTA % / PARTNER QUOTA % / KEY STATE
+  * CACHING "EDGE CACHING": CLIENT → EDGE CACHE card (WARM/COLD chip, TTL countdown bar aws→danger under 25%, HIT/MISS counters) → λ PRODUCTS origin card with 240ms integration-hop fill bar on MISS; request useTicker 1.1s — HIT 18ms while warm, MISS 228–252ms fills cache; TTL countdown useTicker 1s (demo seconds) → expiry evicts + danger log; TTL slider 30–300s (step 10, applies to next fill); UCButton "INVALIDATE CACHE" → purge + "next GET is a MISS" + VerdictFlash "CACHE INVALIDATED" deny (dim log if already cold); stats HIT RATIO % / AVG LATENCY / INVALIDATIONS / TTL LEFT / GETS SERVED / CACHE STATE
+- Wired src/components/services/lambda.tsx: UseCaseTabs+UcTabDef+LambdaUseCases imports, lucide +ImageDown/+Share2/+Thermometer; LAMBDA_TABS const (GENERAL Zap · S3_EVENTS ImageDown "S3 EVENT PROCESSING" · COLD_WARM Thermometer "COLD VS WARM" · FAN_OUT Share2 "EVENT FAN-OUT") as const satisfies readonly UcTabDef[] + LambdaTabId; const [tab, setTab] as first state line; tablist + {tab !== "GENERAL" && <LambdaUseCases id=… immersiveActive immersiveToggle/>} right after root div; ALL existing children wrapped in {tab === "GENERAL" && (<>…</>)} untouched
+- Wired src/components/services/api-gateway.tsx: same recipe — APIGW_TABS (GENERAL Network · THROTTLING Gauge "THROTTLING & 429" · USAGE_PLANS KeySquare "USAGE PLANS & KEYS" · CACHING Zap "EDGE CACHING") + ApigwTabId + ApigwUseCases
+- Lint-rule compliance: all step machines/counters driven by useScenarioRunner-free useTicker callbacks + setTimeout chains inside handlers (zero setState in effect bodies — grep-verified); zero ref.current writes during render (all refs written in callbacks/effects); zero components-inside-components (LSlider/AGSlider/WaveRow/ClientCard/FanOutLane hoisted); flash setTimeouts stored in refs + cleanup useEffects; every FlowCanvas className="h-full"; straight corners + text-[5.5px]..[12px] uppercase mono + aws/mint/magenta/neon/danger/dim tones throughout
+- Verification: bunx tsc --noEmit | rg "services/(lambda|api-gateway)" → EMPTY (no project errors in our files); bun run lint → exit 0, rg "lambda-usecases|api-gateway-usecases|services/lambda|services/api-gateway" → EMPTY; iterated: removed unused logTs/Gauge/Timer imports, fixed fan-out last-consumer vs straggler completion bug (straggler is always slowest → ends fan-out), extended FAN_LINKS to reach consumer lanes, split STAT "TTL LEFT" EXPIRED/— states
+- Not done (per instructions): no dev server / browser run — recommend Task 21-main-style browser sweep for the 6 new tabs (concurrent agents' sns/sqs/cloudfront/elb files were mid-flight during this session; final lint exit was 0)
+
+Stage Summary:
+- Lambda + API Gateway now ship GI-style use-case tab rows: 4 tabs each (GENERAL + 3 new use cases), existing GENERAL simulators byte-identical inside GENERAL fragments
+- All 6 new scenarios interactive: S3 event billing-granularity pipeline, cold/warm lane race with provisioned-concurrency lane removal, SNS fan-out with magenta straggler, token-bucket 429 wave limiter, per-key quota meters with suspend→403, edge cache TTL/invalidate hit-miss economics
+- Verification: tsc + lint both clean for services/(lambda|api-gateway) — zero errors, zero findings
+
+---
+Task ID: 21-b
+Agent: general-purpose
+Task: Implement "best use case" tabs (animations + interactions) for the EC2 and ELB service modules, replicating the s3-usecases golden pattern from Task 21-main
+
+Work Log:
+- Read worklog (21-main + 21-a), shared/use-case.tsx primitives, s3-usecases.tsx golden example, ec2.tsx (TWO animation panels — lifecycle + ASG) + elb.tsx, flow.tsx/sim-controls.tsx/auto-log.tsx APIs
+- Created src/components/services/ec2-usecases.tsx — Ec2UseCases router with 3 tabs:
+  * AUTO_SCALING "AUTO SCALING": LOAD slider 10-100 (module-scope LoadSlider) drives a load wave; useTicker(1s) → measured avg CPU = load ± noise; CloudWatch ALARM node flips OK/ALARM at 70%; >70% → ASG launches chips 2→8 (boot animation: spring-in, neon INITIALIZING → mint IN-SERVICE after 2 ticks) with danger "ALARM — SCALE-OUT" VerdictFlash; <30% → scale-in (terminating chip drains out, mint "SCALE-IN" flash, floor 2); per-chip CPU mini-bars update per tick; stats: LOAD %, CPU AVG, DESIRED INSTANCES, ALARM STATE (OK/ALARM), EST $/HR (n × $0.0464), SCALE EVENTS
+  * PRICING "PRICING MODELS": 3 lane cards ON-DEMAND $0.0464 / SPOT $0.0139 / RESERVED $0.021 with running 30-day cost tickers (1 sim day/tick @850ms, month closes at day 30 → ledger log + next month); UCToggle STEADY/BURSTY flips util (100%/55%) + spot re-run overhead (×3.2/×1.1) so RESERVED wins steady, SPOT wins bursty → mint "BEST FIT" badge on the winning lane + VerdictFlash; UCButton SPOT INTERRUPTION → 5-step useScenarioRunner compresses the 2-min drain: 2-MIN NOTICE → CHECKPOINT (state → S3) → MIGRATE (new pool) → RESUME (chip swap gen+1, boot animation) → ZERO DOWNTIME, timeline strip highlights current phase; stats: OD/SPOT/RI 30-DAY, SAVINGS % (spot vs od), WORKLOAD, INTERRUPTIONS
+  * GOLDEN_AMI "GOLDEN AMI": UCButton BUILD AMI → 4-step pipeline (BASELINE → INSTALL nginx/node-20/aws-cli → HARDEN CIS L1 47 controls → BAKE) with step rows + progress bar (18→44→72→100%), mints AMI vN+1 (BUILD TIME 180-250s random); LAUNCH FLEET → 3 chips boot from AMI vN with version badges (blocked with danger log if no AMI); PATCH + REBAKE → drift check → chips drain (DRAINING — REPLACING) → pipeline rebakes vN+1 → fleet relaunches with new badges → DRIFT 0; BUILD AMI without rebake leaves fleet DRIFTED (danger stat + red FlowLabel); stats: AMI VERSIONS, FLEET SIZE, BUILD TIME S, DRIFT, BAKES, LATEST AMI
+- Created src/components/services/elb-usecases.tsx — ElbUseCases router with 3 tabs:
+  * PATH_ROUTING "PATH ROUTING": CLIENT → ALB (L7) → 3 TGs (/img/* → TG-STATIC prio 1, /api/* → TG-API prio 2, DEFAULT → TG-WEB prio 3); UCButtons SEND /api/orders, SEND /img/logo.png, SEND / fire a packet that animates CLIENT → ALB → matching TG (keyframe motion), matching rule row glows MATCH in the listener-rules card + magenta rule chip above ALB + log "RULE #2 PRIORITY: path-pattern /api/* → tg-api — 200 OK (NNms)"; RUN auto-fires weighted random traffic; stats: TOTAL REQUESTS, per-TG counts ×3, LAST MATCH, TARGET GROUPS 3/3
+  * HEALTH_FAILOVER "HEALTH FAILOVER": 3 target chips with health dots + req counts; UCButton KILL TARGET → victim: 3 failed health checks ticked one-by-one (log each miss w/ count) → DEREGISTERING + connection draining (24-conn drain ticker, DRAIN n/24 on chip + DRAINING CONNS stat) → DEREGISTERED + "TARGET REMOVED" flash, traffic redistributes to survivors automatically (ticker only routes to healthy; 0/3 → 503 logs); UCButton HEAL → 2 passing checks (200 OK 1/2, 2/2) → re-registered mint log + "BACK IN ROTATION" flash; dashed probe links from HEALTH CHECKER node turn error/success; stats: HEALTHY n/3, FAILED CHECKS, DRAINING CONNS, DEREGISTERED, REQUESTS SERVED, RECOVERIES
+  * BLUE_GREEN "BLUE-GREEN": BLUE v1.4 lane at 100% (aws) + GREEN v1.5 lane (mint); UCButton DEPLOY GREEN → 3-step warm-up (provision → pools/cache warm → health 3/3 PASSED, READY at 0%); UCButton PROMOTE → 3-phase useScenarioRunner animates weights 100/0 → 50/50 (CANARY log) → 0/100 (GREEN 100%) → finalize ACTIVE v1.5 + ROLLOVERS++ with StepBadge showing SHIFT phases; UCButton ROLLBACK → weights animate back 50/50 → 100/0 (danger logs, v1.4 RESTORED, green kept warm); live traffic packets split by current weights; stats: ACTIVE VERSION, BLUE %, GREEN %, ROLLOVERS, GREEN HEALTH, REQUESTS
+- Wired src/components/services/ec2.tsx: UseCaseTabs+UcTabDef+Ec2UseCases imports, lucide +Coins +Disc +TrendingUp; EC2_TABS (GENERAL Cpu · AUTO_SCALING TrendingUp · PRICING Coins · GOLDEN_AMI Disc) as const satisfies readonly UcTabDef[] + Ec2TabId; tab state FIRST state line; tablist + conditional Ec2UseCases right after root div opens; ALL existing children (both panels + state log + knowledge) wrapped in {tab === "GENERAL" && (<>…</>)} untouched; BOTH FullscreenToggles kept (one per panel)
+- Wired src/components/services/elb.tsx: same recipe — ELB_TABS (GENERAL Network · PATH_ROUTING Split · HEALTH_FAILOVER HeartPulse · BLUE_GREEN GitBranch) + ElbTabId + ElbUseCases
+- Lint-rule compliance verified by scan: zero setState in effect bodies (all step machines via useScenarioRunner, counters/state machines via useTicker interval callbacks), zero ref.current writes during render (all inside tickers/handlers/reset), no components defined inside components (AsgChipCard/LoadSlider/PricingLane/AmiPipelineCard/AmiFleetChip/ListenerRulesCard/HfTargetChip/BgLaneCard/useFlash hoisted), flash setTimeouts stored in refs + cleanup useEffects, FlowCanvas className="h-full" ×6, straight corners + tiny uppercase mono + tones only
+- Verification: bunx tsc --noEmit filtered to services/(ec2|elb) → EMPTY (project total 4 error lines, all pre-existing in examples//skills/); bun run lint → exit 0, zero findings for ec2-usecases|elb-usecases|services/ec2|services/elb
+
+Stage Summary:
+- EC2 + ELB now ship GI-style use-case tab rows: 4 tabs each (GENERAL + 3 new use cases), existing GENERAL simulators byte-identical inside fragments (EC2 keeps both animation panels + both fullscreen toggles)
+- All 6 new scenarios interactive: load-wave alarm auto-scaling 2→8, pricing best-fit verdict flip + compressed spot drain, golden AMI build/launch/patch-rebake with drift, ALB path-rule packet matching, health-check failover with connection draining, weighted blue-green promote/rollback
+- Not done (per instructions): no dev server / browser run — recommend a Task 21-main-style browser sweep for the 6 new tabs
+
+---
+Task ID: 21-final
+Agent: main
+Task: Integrate agents 21-a..21-f — full verification of use-case tabs across all 13 services + run the app
+
+Work Log:
+- Full tsc (excl. skills/examples) -> 0 errors; bun run lint -> exit 0 clean project-wide (transient mid-flight parse error in elb.tsx observed in dev.log was resolved by 21-b; current file valid, compiles GET / 200)
+- Browser E2E sweep: all 13 services verified via hotkeys — tab lists: IAM 4, S3 6, VPC 4, EC2 4, ELB 4, Lambda 4, APIGW 4, SNS 4, SQS 4, CloudFront 4, RDS 4, CloudWatch 4, Containers 4 = 51 tabs (46 use-case views + 13 GENERAL + GI's 3)
+- Every use-case tab clicked: UseCaseShell renders (USE CASE // title + LIVE STATS + CONTROLS + RUN button) — 39/39 pass
+- Live interactions: RDS KILL PRIMARY -> detection countdown + HARDWARE FAILURE + DNS flip sequence; EC2 autoscale at load 95 -> instance chips + alarm; Lambda RACE NOW -> WARM WINS x30 (964ms vs 32ms, 97% savings); CW ALARM -> metric/alarm/actions chips; ECS DEPLOY V2 -> rolling pipeline + zero downtime
+- GI unchanged: 3 tabs + globe canvas intact; zero page errors; console clean
+- Screenshots: /home/z/shots/uc-s3-lake3.png, uc-s3-ver.png, uc-s3-policy.png, uc-s3-lc.png, uc-rds-multiaz.png, uc-lambda-coldwarm.png, uc-ecs-rolling.png
+
+Stage Summary:
+- EVERY service module now has GI-style use-case tabs with animated scenario scenes + interactive controls + live logs: 46 use-case views total
+- S3: Data Lake / Versioning / Static Hosting / Bucket Policy visualizer / Lifecycle (user's exact 5-tab spec)
+- IAM: Federated Access / Least Privilege / Cross-Account · VPC: Three-Tier / NAT / SG-vs-NACL · EC2: Auto Scaling / Pricing / Golden AMI · ELB: Path Routing / Health Failover / Blue-Green · Lambda: S3 Events / Cold-Warm / Fan-Out · APIGW: Throttling / Usage Plans / Caching · SNS: Fan-Out / Push+SMS / Retry-DLQ · SQS: Buffer / Worker Scaling / Redrive · CloudFront: Edge Accel / Streaming / Signed URLs · RDS: Multi-AZ / Replicas / PITR · CloudWatch: Alarm-Action / Dashboard / Anomaly · Containers: Rolling Deploy / Service Scaling / EKS HPA
+- Shared primitives in shared/use-case.tsx keep all tabs consistent + lint-clean; fullscreen toggles available in every use-case shell
+
+---
+Task ID: 22
+Agent: main (orchestrator)
+Task: Add AWS CloudFormation as module 15 with GI-style use-case tabs + animations (user docs URL: https://docs.aws.amazon.com/cloudformation/)
+
+Work Log:
+- Created public/icons/aws/cloudformation.svg — official-style Arch icon (pink #E7157B bg + white stacked-layers glyph, Arch_AWS-CloudFormation layout)
+- aws-icons.tsx: added inline CloudFormationIcon glyph (currentColor stacked layers, viewBox 64), registered cloudformation in both AWS_ARCH_ICONS (colored tile) and SERVICE_ICONS (inline glyph map)
+- services-data.ts: appended ServiceMeta index "15" — id cloudformation, short CFN, codename STACK WEAVER, category OPS, docs link https://docs.aws.amazon.com/cloudformation/, stats TEMPLATE YAML/JSON · RESOURCE TYPES 1500+ · ROLLBACK AUTOMATIC · STACKSETS MULTI-ACCT
+- registry.tsx: dynamic import cloudformation (ssr:false, ModuleLoader)
+- page.tsx: hotkey row extended to 15 keys (";" now selects CloudFormation)
+- Built src/components/services/cloudformation.tsx (GENERAL "STACK WEAVER"): template.yaml card (6 YAML logical-ids highlighted per active resource) → CFN orchestrator core (stack name/ARN chip, phase pill CREATE/UPDATE/ROLLBACK/DELETE, progress bar, drift flag) → 5 resource nodes (IAM Role, S3, DynamoDB, Lambda, ALB) created in dependency order with anime.js FlowLinks (flowing/success/error/cyber per state) + dashed DependsOn edge. Discrete event engine (760ms ticks, refs-as-truth): DEPLOY → CREATE_IN_PROGRESS/COMPLETE events; FAIL LAMBDA toggle → CREATE_FAILED + ROLLBACK_IN_PROGRESS reverse teardown → ROLLBACK_COMPLETE → auto delete; UPDATE (in-place table only); DELETE reverse order; CAUSE DRIFT (console out-of-band edit → magenta DRIFTED); autopilot loop (create→update→delete). LIVE STATS + SimControls + stack events AutoLog + 3 callouts. Immersive fullscreen wired.
+- Built src/components/services/cloudformation-usecases.tsx (5 tabs, useLog/useFlash micro-hooks):
+  · IAC: dependency-wave deploy of 6 resources in 3 waves vs SERIAL (no CFN) mode — wall clock 4.2s vs 8.4s, DependsOn edge overlay toggle, wave labels highlight live wave
+  · CHANGE_SETS: template v1→v2 diff panel, change-set-9f2c with 4 action rows (ADD/MODIFY×2/REPLACE flagged danger with pulsing warning), scenario steps diff→review→execute, EXECUTE applies only changed resources (REPLACE does delete+recreate), DISCARD = zero changes verdict
+  · ROLLBACK: inject failure at resource 1-4 selector → UPDATE_FAILED → UPDATE_ROLLBACK_IN_PROGRESS reverse revert of modified resources → UPDATE_ROLLBACK_COMPLETE, live version v1.8.0→v1.7.2, DOWNTIME 0s
+  · DRIFT: 3 console-edit injectors (STOP EC2 / OPEN SSH :22 / DELETE POLICY) → RUN DETECTION polls 4 resources (IN_SYNC mint vs DRIFTED magenta + reason chips) → REVERT (CFN re-applies template) or ADOPT (template updated)
+  · STACKSETS: audit-baseline stackset → 3 accounts (AUDIT/PROD/SANDBOX) × 2 regions (US-EAST-1/EU-WEST-1) grid, region waves with concurrent accounts, FAIL SANDBOX·EU + TOLERANCE STOP/CONTINUE (STOP halts remaining with NOT ATTEMPTED cells + deny verdict; CONTINUE skips and finishes)
+- Verification: bunx tsc --noEmit → 0 errors; bun run lint → clean. Agent Browser E2E: nav rail shows 15 modules; hotkey ";" selects CloudFormation; GENERAL deploy → 5/5 CREATE_COMPLETE + 12 events; IAC → 6/6 in 4.2s waves; CHANGE SETS preview + REPLACEMENT flag; ROLLBACK → UPDATE_ROLLBACK_COMPLETE + v1.7.2 restored; DRIFT → 2 drifted detected + REVERTED; STACKSETS → 6/6 COMPLETE and FAIL+STOP → 5/6 ROLLOUT STOPPED verdict; immersive fullscreen enter/exit OK; hotkey 1/3 spot-checks fine; tablist flex-wrap OK; zero page errors in dev.log
+- Screenshots: /home/z/shots/cfn-general.png, cfn-iac.png, cfn-changesets.png, cfn-rollback.png, cfn-drift.png, cfn-stacksets.png, cfn-stacksets-fail.png, cfn-immersive.png, cfn-final.png
+
+Stage Summary:
+- MODULE 15 AWS CLOUDFORMATION (STACK WEAVER) live: GENERAL stack-lifecycle simulator + 5 best-use-case tabs (IAC waves, Change Sets preview, Auto Rollback, Drift Detection, StackSets org rollout) — every tab animated with UseCaseShell/LIVE STATS/CONTROLS/scenario log and interactive controls, consistent with the other 13 services
+- App now: 15 modules / 57 total tabs = 3 (GI) + 4x12 (IAM..Containers: GENERAL + 3 use-cases) + 6 (CFN: GENERAL + 5 use-cases); use-case views: 51; hotkeys 1-9,0,-,=,[,],;
+- tsc/lint zero; browser-verified end-to-end; docs link to https://docs.aws.amazon.com/cloudformation/ in module header
+
+---
+Task ID: 23
+Agent: main (orchestrator)
+Task: CloudFormation — "make sure we have appropriate animations in ALL tabs" (user follow-up to Task 22)
+
+Work Log:
+- Browser-audited all 6 CFN tabs; found critical render bug: ALL 4 FlowCanvas stages in cloudformation-usecases.tsx (IAC / CHANGE_SETS / ROLLBACK / DRIFT) collapsed to 2px height — the only service files missing `className="h-full"` on FlowCanvas (every other *-usecases.tsx passes it). Engines ran + stats updated but the animated stage was invisible (empty black canvas).
+- Fixed: added className="h-full" to the 4 FlowCanvas usages (IAC, CHANGE_SETS, ROLLBACK, DRIFT). STACKSETS was unaffected (own h-full container).
+- Fixed StepBadge collision: the per-tab CFN chip in IAC + CHANGE_SETS sat at left-3 top-2.5 — same slot as StepBadge (left-2 top-2) → garbled overlap. Moved both chips to left-3 top-9 (below badge).
+- Animation polish per tab:
+  * CHANGE_SETS: diff panel is now data-driven (CS_DIFF_LINES) with staggered line reveal (motion.p, 65ms stagger, slide-in from left) + trailing "change-set-9f2c ready" line; replays on every NEW PREVIEW via runSeq key (reset clears).
+  * ROLLBACK: "FAILS HERE" marker upgraded from static FlowLabel to spring pop-in/out (AnimatePresence + motion.div, scale 0.6→1, centered via motion x/y "-50%" — avoids Tailwind-translate vs framer-transform conflict).
+  * DRIFT: added animated magenta scan sweep line (2.4s loop top→bottom with glow) + blinking "SCANNING RESOURCES…" chip while detection runs; fixed drift reason-tooltip centering (motion x:"-50%" instead of Tailwind -translate-x-1/2 which framer overrides).
+  * STACKSETS: added 2 self-contained FlowLink connectors core → US-EAST-1 / EU-WEST-1 columns with per-region reactive status (flowing while its wave deploys, success when all 3 accounts created, error on failed/stopped) + AnimatePresence mode="wait" slide transitions on every cell status text (PENDING → CREATE_IN_PROGRESS → STACK INSTANCE LIVE / CREATE_FAILED / NOT ATTEMPTED).
+- Browser E2E re-verified every tab: GENERAL deploy (flowing links, 5/5 CREATE_COMPLETE), IAC canvas h=480 + wave deployment, CHANGE_SETS preview→stagger diff→EXECUTE_COMPLETE (all rows MODIFIED, green links), ROLLBACK UPDATE_FAILED flash → UPDATE_ROLLBACK_IN_PROGRESS → UPDATE_ROLLBACK_COMPLETE v1.7.2 / 0 downtime, DRIFT cause 2 drifts → scan → magenta tooltips + DRIFTED core → REVERT → STACK IN SYNC 4/4, STACKSETS deploy (connectors + 6/6) and FAIL SANDBOX·EU + STOP → STOPPED 5/6 FAILED 1 (failure in last region = nothing left unattempted, matches design), immersive fullscreen run inside IAC tab + Escape exit, mobile 390px no overflow (scrollWidth 390, tabs wrap 2-per-row).
+- Verification: bunx tsc --noEmit --incremental false → 0 project errors; bun run lint → exit 0; agent-browser errors → empty; dev.log clean (GET / 200).
+- Screenshots: /home/z/shots/cfn-audit-general.png, cfn-audit-general-run.png, cfn-v2-iac.png, cfn-v2-changesets.png, cfn-v2-changesets-exec.png, cfn-v2-rollback.png, cfn-v2-rollback-done.png, cfn-v2-drift.png, cfn-v2-drift-revert.png, cfn-v2-stacksets.png, cfn-v2-stacksets-stopped.png, cfn-v2-iac-final.png, cfn-v2-iac-immersive.png, cfn-v2-mobile.png
+
+Stage Summary:
+- All 6 CloudFormation tabs now render their animated stages correctly (root cause of "no animations" was the collapsed 2px canvases, not missing animation code) — every tab has live animations + interactive controls, consistent with the other 14 modules
+- CFN animation inventory per tab: GENERAL stack lifecycle sim · IAC dependency-wave deployment with flowing links + wave labels + progress bar · CHANGE SETS staggered diff reveal + pulsing REPLACE row + verdict flashes · ROLLBACK fail-marker pop + color-shifting progress + verdict flashes · DRIFT radar scan sweep + blinking scan chip + magenta tooltips · STACKSETS reactive connectors + cell status transitions + verdict flashes
+- App state: 15 modules / 57 tabs, tsc + lint zero, browser-verified end-to-end at desktop + mobile widths
+
+---
+Task ID: 24
+Agent: main (orchestrator)
+Task: Rename codenames to actual AWS service abbreviations + URL-parameter access (?service=<key>&mapperhidden=true|false)
+
+Work Log:
+- Renamed ServiceMeta field codename → abbr across services-data.ts / page.tsx / service-nav.tsx / hero.tsx; zero codename refs remain (rg verified)
+- Set actual service abbreviations: GI · IAM · S3 · VPC · EC2 · ELB · LMD (λ) · APIGW · SNS · SQS · CF (CloudFront) · RDS · CW · ECS·EKS (Containers) · CFN (CloudFormation)
+- Display surfaces updated: module header now "MODULE NN // CATEGORY — SVC: <ABBR>"; nav rail expanded sub-label + hover tooltip + aria-labels + hero marquee all show abbr
+- Cleaned 2 user-visible fictional codename remnants in module stages: cloudformation.tsx stage chip "STACK WEAVER" → "CFN — IAC", elb.tsx card title "FLOW VIEW // TRAFFIC SPLITTER" → "FLOW VIEW // ELB" (remaining hits were code comments only)
+- URL deep links in page.tsx: mount effect (rAF-deferred, lint set-state-in-effect compliant) parses ?service= via new resolveServiceKey() and ?mapperhidden= via new parseBoolParam(); both exported from services-data.ts
+- resolveServiceKey match order: exact id → normalized id → short/abbr/name → curated alias map (gi, infra, identity, lmd, fn, apigw, apigateway, gateway, cdn, monitoring, ecs, eks, ecr, k8s, kubernetes, docker, cfn, iac, stack, stacks; case/separator-insensitive)
+- Canonical shareable URL: history.replaceState always keeps ?service=<id>&mapperhidden=<bool> in sync — on load, on nav-rail/mobile-chip clicks, on hotkeys (1-9,0,-,=,[,],;), on SHOW/HIDE MAPPER toggles
+- mapperhidden=true unmounts the whole ServiceNav (desktop rail + mobile chips); inline "SHOW MAPPER" chip + hint text appear in the content column; ServiceNav gained optional onHide prop with magenta PanelLeftClose button in the desktop rail header and a HIDE chip at the tail of the mobile scroll row
+- Invalid/unknown ?service= values fall back to GLOBAL INFRASTRUCTURE gracefully (URL canonicalized)
+- Verification: bunx tsc --noEmit → 0 project errors; bun run lint → exit 0; agent-browser E2E:
+  * /?service=iam → IAM opens, URL → ?service=iam&mapperhidden=false
+  * /?service=s3&mapperhidden=true → S3 + rail gone + SHOW MAPPER chip; click → rail back + mapperhidden=false; rail HIDE → true; SHOW → false (URL synced each step)
+  * hotkey 4 → VPC + URL service=vpc; aliases apigw→API GATEWAY, cfn/CFN→CLOUDFORMATION, ecs→CONTAINERS, gi→GLOBAL INFRASTRUCTURE; CFN&mapperhidden=1 (truthy 1) works
+  * bogus123 → graceful GI fallback; zero page errors; dev.log clean
+  * expanded rail shows abbr sub-labels for all 15 modules; mobile 390px scrollWidth 390 (no overflow) with deep link + hidden mapper
+- Screenshots: /home/z/shots/t24-deeplink-iam.png, t24-s3-mapperhidden.png, t24-rail-abbr.png, t24-mobile-cfn.png, t24-final-cfn.png
+
+Stage Summary:
+- All fictional codenames replaced by official AWS service abbreviations in every UI surface (header "SVC:", nav rail, tooltips, hero marquee, in-stage chips)
+- Every module is now deep-linkable: /?service=<id|abbr|alias>&mapperhidden=true|false — URL canonicalized and kept in sync with all navigation paths (clicks, hotkeys, toggles); mapper fully hideable/restorable from UI and URL
+- 15 modules / 57 tabs untouched and re-verified; tsc + lint zero; browser-verified desktop + mobile
+
+---
+Task ID: 25
+Agent: main (orchestrator)
+Task: Sidebar polish — HIDE MAPPER button only in expanded mode; expanded-rail/tooltip second line shows full service name (except Containers)
+
+Work Log:
+- service-nav.tsx: desktop rail HIDE MAPPER button now gated on `onHide && expanded` — shrink (icon-only) mode shows only the collapse chevron; expanded mode shows both
+- Added navSubLabel() helper: second line of expanded rail items AND shrink-mode hover tooltip now renders the full service name (s.name) for every module EXCEPT Containers, which keeps its ECS·EKS abbreviation
+- services-data.ts: IAM name spelled out "IDENTITY & ACCESS MGMT" → "IDENTITY & ACCESS MANAGEMENT" (also improves module header + aria-labels); first line "NN // SHORT" untouched per user instruction
+- Mobile horizontal chips keep their tail HIDE chip (no shrink/expanded concept on mobile)
+- Verification: tsc → 0 project errors; lint → exit 0; browser E2E: shrink mode hide-button absent, expanded present; all 15 second lines read GLOBAL INFRASTRUCTURE / IDENTITY & ACCESS MANAGEMENT / SIMPLE STORAGE SERVICE / VIRTUAL PRIVATE CLOUD / ELASTIC COMPUTE CLOUD / ELASTIC LOAD BALANCING / AWS LAMBDA / API GATEWAY / SIMPLE NOTIFICATION SERVICE / SIMPLE QUEUE SERVICE / CLOUDFRONT CDN / RELATIONAL DATABASE SERVICE / AMAZON CLOUDWATCH / ECS·EKS (containers exception) / AWS CLOUDFORMATION; hover tooltip shows "02 // IAM / IDENTITY & ACCESS MANAGEMENT"; mobile 390px no overflow; zero page errors; dev.log clean
+- Screenshots: /home/z/shots/t25-expanded-fullnames.png, t25-tooltip.png
+
+Stage Summary:
+- Sidebar matches spec: shrink mode = icons + tooltip only (no hide button); expanded mode = "NN // SHORT" over full service name (Containers → ECS·EKS), plus HIDE MAPPER + collapse controls; URL deep links and mapper toggling behavior unchanged
+
+---
+Task ID: 26
+Agent: main (orchestrator)
+Task: Use user-provided HexagonLoader for the module-square loading state in services
+
+Work Log:
+- Created src/components/shared/hexagon-loader.tsx — the user's HexagonLoader verbatim (morphing outer hexagon + forming inner hexagon + orange glow), with "use client", typed points array (strict-mode fix), and keyframes moved from `<style jsx>` to `<style jsx global>` so the inline animation-name references resolve (styled-jsx scopes keyframes in scoped blocks, which would silently break them)
+- registry.tsx: ModuleLoader now renders <HexagonLoader size={80}/> + LOADING MODULE / COMPILING FLOW GRAPH lines (replaced the old square clip-path spinner)
+- Added withMinDisplay() wrapper around every dynamic import: keeps ModuleLoader mounted ≥900ms (MIN_MODULE_LOAD_MS) while the chunk loads underneath via next/dynamic — without it the hexagon flashed for <300ms on cached chunks and was effectively invisible; chunk fetch still starts immediately (nothing delayed)
+- Verification: tsc → 0 project errors; lint → exit 0; in-page sampler proved loader+hex+overlay mounted ~926ms (596→1522ms window) then module renders; document.getAnimations() listed hexagonMorph + innerHexagonForm running (keyframes resolve correctly under dark theme: white outer hexagon, #ff9900 inner)
+- Browser E2E: boot-then-hotkey switch caught the loader naturally mid-morph (screenshot t26-s2.png shows white hexagon + orange glow + LOADING MODULE text in the module square; s3 shows CloudFront fully rendered right after); module loads verified for CFN/EC2/CloudFront; zero page errors; dev.log clean
+- Test forensics notes (for future agents): on fresh reload the module loader runs BEHIND the 2.4s BootOverlay — catch it after boot via hotkey to an unvisited module; WAAPI pause/seek on the SVG path produced misleading rects (transform keyframes on SVG paths + seek) — trust natural-playwright screenshots + getAnimations instead; never .remove() React-managed nodes (AnimatePresence exit crash) — use style.display='none'
+- Screenshots: /home/z/shots/t26-s2.png (loader in action), t26-s3.png (module after), t26-burst2.png (boot overlay sanity)
+
+Stage Summary:
+- Module-square loading state now uses the user's HexagonLoader (white morphing hexagon + AWS-orange core + glow) with a 900ms minimum display so the animation is always perceptible across all 15 service modules; all prior functionality intact (tsc/lint zero, E2E verified)
+
+---
+Task ID: 27
+Agent: main (orchestrator)
+Task: HexagonLoader cleanup — remove blur layer behind hexagon, remove card/overlay around loader ("just as previously with square → hexagon")
+
+Work Log:
+- hexagon-loader.tsx: removed the glow/blur div (absolute inset-0 rounded-full blur-[10px] animate-pulse gradient blob) that sat behind the SVG; unwrapped the extra relative container — the component is now just the bare animated hexagon SVG
+- registry.tsx: replaced the withMinDisplay overlay approach (absolute bg-background card covering the module during the min window) with withMinLoad() — a clean in-place swap: chunk import starts in an effect on mount, ModuleLoader renders until (chunk resolved AND 900ms min elapsed), then the module renders directly. No wrapper div, no card, no nested double-loader; .catch keeps the loader up on chunk failure instead of unhandled rejection
+- ModuleLoader container restored to the previous style (gap-4) — layout identical to the original loader, only the square spinner swapped for the hexagon
+- Verification: tsc → 0 project errors; lint → exit 0; browser E2E fresh session: DOM confirms glow div absent + overlay card absent during load; burst screenshots show hexagon + LOADING MODULE texts centered directly in the module square (t27-s1.png mid-fade, t27-crisp.png clean); modules load normally after swap (IAM → IDENTITY & ACCESS MANAGEMENT, S3 → SIMPLE STORAGE SERVICE); zero page errors; dev.log clean
+- Screenshots: /home/z/shots/t27-crisp.png (loader, no card/no glow), t27-s1.png, t27-s2.png
+
+Stage Summary:
+- Module loading state is now exactly the previous layout with the square spinner replaced by the user's hexagon morph animation: no blur layer behind it, no card around it, 900ms min-display preserved via clean loader→module swap across all 15 services

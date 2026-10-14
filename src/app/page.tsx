@@ -1,19 +1,22 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { PanelLeft } from "lucide-react";
 import { BackgroundFX } from "@/components/layout/background-fx";
 import { ServiceNav } from "@/components/layout/service-nav";
 import { BootOverlay } from "@/components/layout/boot-overlay";
 import { MODULE_COMPONENTS } from "@/components/services/registry";
 import { AWS_ARCH_ICONS, AWSIconTile } from "@/components/aws-icons";
-import { SERVICE_MAP, SERVICES } from "@/lib/services-data";
+import { SERVICE_MAP, SERVICES, parseBoolParam, resolveServiceKey } from "@/lib/services-data";
 import { BookOpen } from "lucide-react";
 
 export default function Home() {
   const [booted, setBooted] = useState(false);
   const [activeId, setActiveId] = useState<string>("global-infrastructure");
   const [renderKey, setRenderKey] = useState(0);
+  const [mapperHidden, setMapperHidden] = useState(false);
+  const urlReady = useRef(false);
 
   const meta = useMemo(() => SERVICE_MAP[activeId], [activeId]);
   const ActiveModule = MODULE_COMPONENTS[activeId];
@@ -23,9 +26,60 @@ export default function Home() {
     setRenderKey((k) => k + 1);
   }, []);
 
-  // keyboard: module hotkeys — 1..9, 0, -, =, [, ]
+  // ── URL deep links ────────────────────────────────────────────────────
+  // ?service=<id|abbr|alias> opens that module directly (e.g. ?service=iam)
+  // &mapperhidden=true|false hides/shows the module mapper sidebar.
+  // Applied inside requestAnimationFrame (boot overlay still covers the
+  // viewport) so the very first paint stays deterministic.
   useEffect(() => {
-    const KEYS = ["1","2","3","4","5","6","7","8","9","0","-","=","[","]"];
+    const id = requestAnimationFrame(() => {
+      let svc: string | null = null;
+      let hidden = false;
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        svc = resolveServiceKey(sp.get("service"));
+        const mh = sp.get("mapperhidden");
+        hidden = parseBoolParam(mh);
+        if (svc) {
+          setActiveId(svc);
+          setRenderKey((k) => k + 1);
+        }
+        if (mh !== null) setMapperHidden(hidden);
+      } catch {
+        /* noop */
+      }
+      urlReady.current = true;
+      // canonicalize the address bar so the view is always shareable
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.set("service", svc ?? "global-infrastructure");
+        u.searchParams.set("mapperhidden", hidden ? "true" : "false");
+        window.history.replaceState(null, "", u.toString());
+      } catch {
+        /* noop */
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // keep ?service= & ?mapperhidden= in sync with UI state (shareable URL)
+  useEffect(() => {
+    if (!urlReady.current) return;
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("service", activeId);
+      u.searchParams.set("mapperhidden", mapperHidden ? "true" : "false");
+      window.history.replaceState(null, "", u.toString());
+    } catch {
+      /* noop */
+    }
+  }, [activeId, mapperHidden]);
+
+  const toggleMapper = useCallback(() => setMapperHidden((h) => !h), []);
+
+  // keyboard: module hotkeys — 1..9, 0, -, =, [, ], ;
+  useEffect(() => {
+    const KEYS = ["1","2","3","4","5","6","7","8","9","0","-","=","[","]",";"];
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const idx = KEYS.indexOf(e.key);
@@ -45,13 +99,34 @@ export default function Home() {
 
       <main className="flex-1 flex flex-col" role="main">
         <div className="flex-1 w-full px-3 sm:px-5 py-5 flex flex-col lg:flex-row gap-5 items-start">
-          {/* NAV RAIL — 96vh height, fixed with 2vh top / 2vh bottom inset (desktop) */}
-          <div className="w-full lg:w-auto lg:sticky lg:top-[2vh] lg:h-[96vh] lg:-mt-1.5">
-            <ServiceNav activeId={activeId} onSelect={select} />
-          </div>
+          {/* NAV RAIL — 96vh height, fixed with 2vh top / 2vh bottom inset (desktop).
+              Hidden entirely when ?mapperhidden=true — restore via the SHOW MAPPER chip. */}
+          {!mapperHidden && (
+            <div className="w-full lg:w-auto lg:sticky lg:top-[2vh] lg:h-[96vh] lg:-mt-1.5">
+              <ServiceNav activeId={activeId} onSelect={select} onHide={toggleMapper} />
+            </div>
+          )}
 
           {/* MODULE VIEWPORT */}
           <div className="flex-1 min-w-0 w-full">
+            {/* mapper hidden via ?mapperhidden=true — inline restore chip */}
+            {mapperHidden && (
+              <div className="flex items-center gap-3 mb-3">
+                <button
+                  type="button"
+                  onClick={toggleMapper}
+                  aria-label="Show module mapper sidebar"
+                  title="Show module mapper (mapperhidden=false)"
+                  className="flex items-center gap-2 px-3 py-2 text-[9px] font-bold uppercase tracking-[0.2em] border border-aws/50 bg-black/60 backdrop-blur-md text-aws hover:bg-aws/10 hover:border-aws transition-colors box-glow"
+                >
+                  <PanelLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                  SHOW MAPPER
+                </button>
+                <span className="text-[8px] uppercase tracking-[0.24em] text-muted-foreground hidden sm:inline">
+                  MAPPER HIDDEN — URL PARAM mapperhidden=true
+                </span>
+              </div>
+            )}
             {/* module header bar */}
             <AnimatePresence mode="wait">
               <motion.div
@@ -74,7 +149,7 @@ export default function Home() {
                     </span>
                     <div className="min-w-0">
                       <p className="text-[8px] uppercase tracking-[0.3em] text-magenta font-bold">
-                        MODULE {meta.index} {"//"} {meta.category} — CODENAME: {meta.codename}
+                        MODULE {meta.index} {"//"} {meta.category} — SVC: {meta.abbr}
                       </p>
                       <h2 className="text-base sm:text-xl font-extrabold uppercase tracking-[0.12em] text-foreground mt-0.5">
                         {meta.name}

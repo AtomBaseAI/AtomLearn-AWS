@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64px" height="64px" viewBox="0 0 64 64" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Icon-Architecture/48/Arch_AWS-CloudFormation_48</title>
+    <g id="Icon-Architecture/48/Arch_AWS-CloudFormation_48" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Icon-Architecture-BG/48/Management-Governance" fill="#E7157B">
+            <rect id="Rectangle" x="0" y="0" width="64" height="64"></rect>
+        </g>
+        <path d="M32,10.5 L53.5,21.25 L32,32 L10.5,21.25 L32,10.5 Z M32,13.4 L15.9,21.25 L32,29.1 L48.1,21.25 L32,13.4 Z" id="Stack-Top" fill="#FFFFFF"></path>
+        <path d="M10.5,27.4 L32,38.15 L53.5,27.4 L53.5,31.6 L32,42.35 L10.5,31.6 L10.5,27.4 Z M32,35.25 L53.5,24.5 L53.5,27.4 L32,38.15 L10.5,27.4 L10.5,24.5 L32,35.25 Z" id="Stack-Middle" fill="#FFFFFF"></path>
+        <path d="M10.5,36.9 L32,47.65 L53.5,36.9 L53.5,41.1 L32,51.85 L10.5,41.1 L10.5,36.9 Z M32,44.75 L53.5,34 L53.5,36.9 L32,47.65 L10.5,36.9 L10.5,34 L32,44.75 Z" id="Stack-Bottom" fill="#FFFFFF"></path>
+    </g>
+</svg>

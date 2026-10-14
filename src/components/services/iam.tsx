@@ -9,9 +9,11 @@ import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { IamUseCases } from "./iam-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import { IAMIcon, UserIcon, LambdaIcon, AccountIcon } from "@/components/aws-icons";
-import { KeyRound, Zap } from "lucide-react";
+import { KeyRound, ScanSearch, Building2, Users, Zap } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* IAM — LIVE POLICY EVALUATION ENGINE                                  */
@@ -161,8 +163,18 @@ interface EvalRequest {
 
 const MAX_LOG = 60;
 
+const IAM_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Users },
+  { id: "FEDERATION", label: "FEDERATED ACCESS", num: "02", icon: KeyRound },
+  { id: "LEAST_PRIV", label: "LEAST PRIVILEGE", num: "03", icon: ScanSearch },
+  { id: "CROSS_ACCOUNT", label: "CROSS-ACCOUNT ROLE", num: "04", icon: Building2 },
+] as const satisfies readonly UcTabDef[];
+
+type IamTabId = (typeof IAM_TABS)[number]["id"];
+
 export default function IAMVisualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<IamTabId>("GENERAL");
   const [principal, setPrincipal] = useState<PrincipalId>("alice");
   const [mfa, setMfa] = useState(true);
   const [action, setAction] = useState<ActionId>("s3:GetObject");
@@ -307,6 +319,15 @@ export default function IAMVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={IAM_TABS} active={tab} onChange={(t) => setTab(t as IamTabId)} label="IAM views" />
+
+      {tab !== "GENERAL" && (
+        <IamUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — ANIMATION LEFT / RAIL RIGHT */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -559,6 +580,8 @@ export default function IAMVisualizer() {
           <span className="text-mint"> aws:MultiFactorAuthPresent</span> check at evaluation time.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

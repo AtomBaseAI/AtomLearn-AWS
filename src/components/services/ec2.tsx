@@ -9,11 +9,15 @@ import { SimControls } from "@/components/shared/sim-controls";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { StatChip } from "@/components/shared/typography";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { Ec2UseCases } from "./ec2-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import { EC2Icon, AWSIconTile, AWS_EXTRA_ICONS } from "@/components/aws-icons";
 import {
+  Coins,
   Cpu,
   Database,
+  Disc,
   HardDrive,
   Layers,
   Play,
@@ -24,6 +28,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  TrendingUp,
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -94,12 +99,22 @@ const freshAsg = (): AsgInstance[] => [
 const BTN =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm disabled:opacity-35 disabled:cursor-not-allowed transition-colors";
 
+const EC2_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Cpu },
+  { id: "AUTO_SCALING", label: "AUTO SCALING", num: "02", icon: TrendingUp },
+  { id: "PRICING", label: "PRICING MODELS", num: "03", icon: Coins },
+  { id: "GOLDEN_AMI", label: "GOLDEN AMI", num: "04", icon: Disc },
+] as const satisfies readonly UcTabDef[];
+
+type Ec2TabId = (typeof EC2_TABS)[number]["id"];
+
 /* ------------------------------------------------------------------ */
 /* EC2 — CORE FORGE                                                    */
 /* ------------------------------------------------------------------ */
 
 export default function EC2Visualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<Ec2TabId>("GENERAL");
   /* ── PANEL A · lifecycle state machine ─────────────────────────── */
   const [state, setState] = useState<LifecycleState>("STOPPED");
   const [transition, setTransition] = useState<LinkKey | null>(null);
@@ -309,6 +324,15 @@ export default function EC2Visualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={EC2_TABS} active={tab} onChange={(t) => setTab(t as Ec2TabId)} label="EC2 views" />
+
+      {tab !== "GENERAL" && (
+        <Ec2UseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* ══════════ PANEL A — LIFECYCLE STATE MACHINE ══════════ */}
       <GlassPanel
         title="LIFECYCLE STATE MACHINE"
@@ -642,6 +666,8 @@ export default function EC2Visualizer() {
           reads role credentials from instance metadata dies against a token-enforcing endpoint.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -9,9 +9,11 @@ import { SimControls } from "@/components/shared/sim-controls";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
 import { useImmersiveView } from "@/hooks/use-immersive";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { SnsUseCases } from "./sns-usecases";
 import { StatChip } from "@/components/shared/typography";
 import { SNSIcon, UserIcon, SQSIcon, LambdaIcon, EmailNotificationIcon, HttpNotificationIcon } from "@/components/aws-icons";
-import { Zap, Filter, Smartphone } from "lucide-react";
+import { Bell, Filter, RotateCw, Share2, Smartphone, Zap } from "lucide-react";
 
 type LogTone = "aws" | "mint" | "danger" | "magenta" | "dim";
 type Attr = "PURCHASE" | "REFUND";
@@ -87,8 +89,18 @@ const IDLE_STATUSES: LinkStatus[] = ["idle", "idle", "idle", "idle", "idle"];
 const BTN =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm";
 
+const SNS_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Bell },
+  { id: "FAN_OUT", label: "FAN-OUT", num: "02", icon: Share2 },
+  { id: "PUSH_SMS", label: "MOBILE PUSH & SMS", num: "03", icon: Smartphone },
+  { id: "RETRY_DLQ", label: "RETRY & DLQ", num: "04", icon: RotateCw },
+] as const satisfies readonly UcTabDef[];
+
+type SnsTabId = (typeof SNS_TABS)[number]["id"];
+
 export default function SNSVisualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<SnsTabId>("GENERAL");
   const [running, setRunning] = useState(false);
   const [filterOn, setFilterOn] = useState(false);
 
@@ -233,6 +245,15 @@ export default function SNSVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={SNS_TABS} active={tab} onChange={(t) => setTab(t as SnsTabId)} label="SNS views" />
+
+      {tab !== "GENERAL" && (
+        <SnsUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — animation left, stats + controls rail right */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -463,6 +484,8 @@ export default function SNSVisualizer() {
           (order_type, severity, tenant) instead of spinning up one topic per consumer.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

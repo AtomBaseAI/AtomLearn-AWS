@@ -9,9 +9,11 @@ import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog, logTs } from "@/components/shared/auto-log";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { LambdaUseCases } from "./lambda-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import { APIGatewayIcon, LambdaIcon, S3Icon, SQSIcon, CloudWatchIcon } from "@/components/aws-icons";
-import { Flame, Gauge, Skull, Snowflake, Timer, Zap } from "lucide-react";
+import { Flame, Gauge, ImageDown, Share2, Skull, Snowflake, Thermometer, Timer, Zap } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* types + static data                                                 */
@@ -92,12 +94,22 @@ const TONE_CLS: Record<LogTone, string> = {
 const BTN =
   "flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.16em] border bg-black/50 backdrop-blur-md cyber-cut-sm disabled:opacity-35 disabled:cursor-not-allowed transition-colors";
 
+const LAMBDA_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Zap },
+  { id: "S3_EVENTS", label: "S3 EVENT PROCESSING", num: "02", icon: ImageDown },
+  { id: "COLD_WARM", label: "COLD VS WARM", num: "03", icon: Thermometer },
+  { id: "FAN_OUT", label: "EVENT FAN-OUT", num: "04", icon: Share2 },
+] as const satisfies readonly UcTabDef[];
+
+type LambdaTabId = (typeof LAMBDA_TABS)[number]["id"];
+
 /* ------------------------------------------------------------------ */
 /* LAMBDA — PHANTOM COMPUTE                                            */
 /* ------------------------------------------------------------------ */
 
 export default function LambdaVisualizer() {
   const immersive = useImmersiveView();
+  const [tab, setTab] = useState<LambdaTabId>("GENERAL");
   const [execs, setExecs] = useState<Exec[]>([]);
   const [containers, setContainers] = useState<Container[]>([]);
   const [outputDots, setOutputDots] = useState<OutputDot[]>([]);
@@ -325,6 +337,15 @@ export default function LambdaVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* MODULE TABS — sits directly below the module title card */}
+      <UseCaseTabs tabs={LAMBDA_TABS} active={tab} onChange={(t) => setTab(t as LambdaTabId)} label="Lambda views" />
+
+      {tab !== "GENERAL" && (
+        <LambdaUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — flow view left, stats + controls rail right */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -606,6 +627,8 @@ export default function LambdaVisualizer() {
           with zero charge when idle. Memory (128MB–10GB) also scales CPU proportionally — more memory often costs less.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }

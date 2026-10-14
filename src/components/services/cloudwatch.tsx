@@ -9,6 +9,8 @@ import { SimControls } from "@/components/shared/sim-controls";
 import { StatChip } from "@/components/shared/typography";
 import { AutoLog } from "@/components/shared/auto-log";
 import { FullscreenToggle } from "@/components/shared/fullscreen-toggle";
+import { UseCaseTabs, type UcTabDef } from "@/components/shared/use-case";
+import { CwUseCases } from "./cloudwatch-usecases";
 import { useImmersiveView } from "@/hooks/use-immersive";
 import {
   CloudWatchIcon,
@@ -20,7 +22,7 @@ import {
   SNSIcon,
   ServerIcon,
 } from "@/components/aws-icons";
-import { Bell, Skull, TrendingUp, Zap } from "lucide-react";
+import { Activity, Bell, BellRing, LayoutDashboard, ScanLine, Skull, TrendingUp, Zap } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /* SIGNAL SCOPE — CloudWatch metrics → alarm state machine → actions   */
@@ -154,9 +156,23 @@ const LINK_SNS = "M56,34 C62,34 62,20 77,20";
 const LINK_ASG = "M56,42 C62,42 62,46 77,46";
 const LINK_EMAIL = "M56,44 C61,44 61,72 77,72";
 
+/* ------------------------------------------------------------------ */
+/* USE-CASE TABS — GENERAL + 3 best-use-case scenarios                  */
+/* ------------------------------------------------------------------ */
+
+const CW_TABS = [
+  { id: "GENERAL", label: "GENERAL", num: "01", icon: Activity },
+  { id: "ALARM_ACTION", label: "ALARM → ACTION", num: "02", icon: BellRing },
+  { id: "DASHBOARD", label: "CUSTOM DASHBOARD", num: "03", icon: LayoutDashboard },
+  { id: "ANOMALY", label: "LOG ANOMALY", num: "04", icon: ScanLine },
+] as const satisfies readonly UcTabDef[];
+
+type CwTabId = (typeof CW_TABS)[number]["id"];
+
 export default function CloudWatchVisualizer() {
   const immersive = useImmersiveView();
   /* controls */
+  const [tab, setTab] = useState<CwTabId>("GENERAL");
   const [running, setRunning] = useState(false);
   const [threshold, setThreshold] = useState(75);
   const [snsOn, setSnsOn] = useState(true);
@@ -400,6 +416,15 @@ export default function CloudWatchVisualizer() {
           : "flex flex-col gap-4"
       }
     >
+      {/* USE-CASE TABS */}
+      <UseCaseTabs tabs={CW_TABS} active={tab} onChange={(t) => setTab(t as CwTabId)} label="CloudWatch views" />
+
+      {tab !== "GENERAL" && (
+        <CwUseCases id={tab} immersiveActive={immersive.active} immersiveToggle={immersive.toggle} />
+      )}
+
+      {tab === "GENERAL" && (
+        <>
       {/* MAIN GRID — flow view left, live stats + controls rail right */}
       <div className={`grid lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start ${immersive.active ? "flex-1" : ""}`}>
         <GlassPanel
@@ -781,6 +806,8 @@ export default function CloudWatchVisualizer() {
           metric.
         </Callout>
       </div>
+        </>
+      )}
     </div>
   );
 }
