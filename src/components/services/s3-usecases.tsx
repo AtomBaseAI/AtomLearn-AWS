@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useSpring, useTransform } from "framer-motion";
 import {
   Archive,
   BarChart3,
@@ -17,6 +17,7 @@ import {
   Search,
   ShieldCheck,
   Trash2,
+  Video,
   Zap,
 } from "lucide-react";
 import { FlowCanvas, FlowLabel, FlowLink, FlowNode } from "@/components/shared/flow";
@@ -410,6 +411,17 @@ function VersioningUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps
 /* TAB 04 — STATIC WEB HOSTING                                         */
 /* ================================================================== */
 
+/* browsing-phase requests — keeps the site alive after the initial HTML/CSS/JS load */
+const ASSET_REQS = [
+  "GET /assets/hero.webp (84KB) — above-the-fold art",
+  "GET /favicon.ico (1.2KB) — browser tab icon",
+  "GET /fonts/inter.woff2 (48KB) — webfont swapped in",
+  "GET /logo.svg (3KB) — vector logo cached",
+  "GET /assets/team.jpg (156KB) — lazy-loaded on scroll",
+  "GET /robots.txt (26B) — crawler rules",
+  "GET /sitemap.xml (9KB) — SEO index",
+];
+
 function HostingUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
   const [running, setRunning] = useState(false);
   const [errorDoc, setErrorDoc] = useState(true);
@@ -417,6 +429,7 @@ function HostingUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
   const [served, setServed] = useState(0);
   const [notFounds, setNotFounds] = useState(0);
   const [reqPerSec, setReqPerSec] = useState(0);
+  const [reqTick, setReqTick] = useState(0);
   const [errPanel, setErrPanel] = useState<null | { custom: boolean }>(null);
   const [flash, setFlash] = useState<null | "ok" | "deny">(null);
   const [lines, setLines] = useState<{ id: number; text: string; tone?: string }[]>([]);
@@ -449,8 +462,18 @@ function HostingUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
   };
 
   // request pipeline: index.html → styles.css → app.js → idle browsing (interval-driven)
+  // steps 0-2 load each asset ONCE (guarded — cycle wrap must not re-log them);
+  // steps 3-5 keep the site alive with varied browsing requests
   const { step, reset: resetStep } = useScenarioRunner(6, running, 1600, (s) => {
-    if (s <= 2) doLoad(s);
+    if (s <= 2) {
+      const key = (['html', 'css', 'js'] as const)[s];
+      if (!pageRef.current[key]) doLoad(s);
+    } else {
+      setServed((c) => c + 1);
+      setReqTick((t) => t + 1);
+      const a = ASSET_REQS[Math.floor(Math.random() * ASSET_REQS.length)];
+      push(`${a} — 200 · served from the bucket`, Math.random() < 0.5 ? "aws" : "mint");
+    }
   });
 
   const requestMissing = () => {
@@ -471,6 +494,7 @@ function HostingUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
     setServed(0);
     setNotFounds(0);
     setReqPerSec(0);
+    setReqTick(0);
     setErrPanel(null);
     setFlash(null);
     setLines([]);
@@ -518,7 +542,7 @@ function HostingUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
       <FlowCanvas ariaLabel="S3 static website hosting use case diagram" className="h-full">
         <FlowLink d="M20,46 C28,34 30,20 36,14" status={running ? "flowing" : "idle"} dotDuration={1.1} />
         <FlowLink d="M20,54 C28,62 40,62 48,58" status={running ? "flowing" : "idle"} dotDuration={1.2} dotDelay={0.3} />
-        <FlowLink d="M64,50 C70,50 72,50 78,50" status={running ? "flowing" : "idle"} dotDuration={1.3} />
+        <FlowLink d="M58,57.5 C58,63 60.5,66.5 62.5,69.5" status={running ? "flowing" : "idle"} dotDuration={1.3} />
 
         <FlowNode x={12} y={50} size="sm" delay={0.1} icon={<Globe className="w-3 h-3" />} label="VISITORS" sub="BROWSER TRAFFIC" status={running ? "active" : "idle"} pulse={running} />
         <FlowNode x={30} y={14} size="sm" delay={0.2} icon={<Search className="w-3 h-3" />} label="ROUTE 53" sub="ALIAS A-RECORD" status={running ? "success" : "idle"} />
@@ -531,13 +555,28 @@ function HostingUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
           transition={{ delay: 0.4 }}
           className="absolute right-2 bottom-2 z-10 w-[38%] max-w-[290px]"
         >
-          <div className="glass cyber-cut p-2">
+          <div className="glass cyber-cut p-2 relative">
+            {/* request ping — flashes on every browsing request */}
+            {reqTick > 0 && (
+              <motion.span
+                key={reqTick}
+                initial={{ opacity: 0.9, scale: 1.4 }}
+                animate={{ opacity: 0, scale: 0.7 }}
+                transition={{ duration: 1 }}
+                className="absolute top-1.5 right-1.5 w-2 h-2 bg-mint border border-mint/60 z-10"
+                aria-hidden="true"
+              />
+            )}
             <div className="flex items-center gap-1.5 pb-1.5 border-b border-aws/15">
               <span className="w-2 h-2 border border-mint/70" aria-hidden="true" />
               <span className="w-2 h-2 border border-aws/70" aria-hidden="true" />
               <span className="w-2 h-2 border border-danger/70" aria-hidden="true" />
               <span className="ml-1 text-[6px] tracking-wider text-muted-foreground truncate">
                 http://nexus-site.s3-website.ap-south-1.amazonaws.com
+              </span>
+              <span className="ml-auto flex items-center gap-1 shrink-0">
+                <span className="text-[6px] font-extrabold tabular-nums text-aws">{served} REQ</span>
+                {running && <span className="w-1.5 h-1.5 bg-mint ping-ring" aria-hidden="true" />}
               </span>
             </div>
             <div className="pt-1.5 min-h-[104px] relative">
@@ -844,7 +883,8 @@ function PolicyUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
       logTitle="POLICY EVALUATION LOG // LIVE"
       logEmpty="EDIT THE POLICY — THEN HIT SIMULATE REQUEST"
     >
-      <div className="absolute inset-0 p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="absolute inset-0 flex flex-col">
+        <div className="flex-1 min-h-0 p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* JSON editor */}
         <div className="flex flex-col gap-2 min-h-0">
           <div className="flex items-center justify-between">
@@ -914,6 +954,7 @@ function PolicyUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
             )}
           </div>
         </div>
+        </div>
       </div>
 
       <VerdictFlash
@@ -921,9 +962,6 @@ function PolicyUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
         text={verdict?.verdict ?? ""}
         tone={verdict?.tone === "ok" ? "ok" : "deny"}
       />
-      <UseCaseNote>
-        POLICIES ARE THE SECURITY PERIMETER: PUBLIC READ FOR HOSTING · IP + TLS CONDITIONS FOR COMPLIANCE · EXPLICIT DENY ALWAYS WINS
-      </UseCaseNote>
     </UseCaseShell>
   );
 }
@@ -935,12 +973,40 @@ function PolicyUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
 interface LcObj {
   id: number;
   key: string;
+  sizeGB: number;
   created: number;
 }
 
-const LC_KEYS = ["IMG", "VID", "LOG", "DOC", "BAK", "CFG", "ZIP", "PDF"];
+/* the three demo objects — a fixed set with real-world sizes so each card
+   shows a meaningful monthly cost that visibly shrinks at every transition */
+const LC_OBJECTS: LcObj[] = [
+  { id: 0, key: "media/hero-4k.mp4", sizeGB: 2460, created: 0 },
+  { id: 1, key: "img/catalog-2024.zip", sizeGB: 640, created: 140 },
+  { id: 2, key: "logs/app-events.json", sizeGB: 90, created: 300 },
+];
+const LC_ICONS = [Video, ImageIcon, FileJson];
+
 const LC_COST = { STANDARD: 0.023, IA: 0.0125, GLACIER: 0.004 } as const;
 type LcTier = keyof typeof LC_COST;
+
+const LC_BAR_CLS: Record<LcTier, string> = {
+  STANDARD: "bg-aws",
+  IA: "bg-neon",
+  GLACIER: "bg-mint",
+};
+
+const fmtSize = (gb: number) => (gb >= 1024 ? `${(gb / 1024).toFixed(1)} TB` : `${gb} GB`);
+const monthCost = (gb: number, tier: LcTier) => gb * LC_COST[tier];
+
+/* AnimatedMoney — spring-tweened dollar readout; counts down when the tier drops */
+function AnimatedMoney({ value }: { value: number }) {
+  const spring = useSpring(value, { stiffness: 80, damping: 20 });
+  useEffect(() => {
+    spring.set(value);
+  }, [value, spring]);
+  const text = useTransform(spring, (v) => `$${v.toFixed(2)}`);
+  return <motion.span className="text-sm font-extrabold tabular-nums text-foreground/95">{text}</motion.span>;
+}
 
 function tierOf(age: number, iaDay: number, glacDay: number, expireDay: number): LcTier | "EXPIRED" {
   if (age >= expireDay) return "EXPIRED";
@@ -992,16 +1058,8 @@ function Slider({
 }
 
 function LifecycleUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps) {
-  const mkObjects = () =>
-    Array.from({ length: 16 }, (_, i) => ({
-      id: i,
-      key: `${LC_KEYS[i % LC_KEYS.length]}-${String(100 + i)}`,
-      created: Math.floor(Math.random() * 90),
-    }));
-
   const [running, setRunning] = useState(false);
   const [day, setDay] = useState(0);
-  const [objects, setObjects] = useState<LcObj[]>(mkObjects);
   const [iaDay, setIaDay] = useState(45);
   const [glacDay, setGlacDay] = useState(180);
   const [expireDay, setExpireDay] = useState(420);
@@ -1020,10 +1078,10 @@ function LifecycleUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps)
   // time advances while running
   useTicker(running, () => setDay((d) => d + 9), 240);
 
-  // transition detection + narration
+  // transition detection + narration (with per-object monthly cost drop)
   useEffect(() => {
     const { iaDay: ia, glacDay: gl, expireDay: ex } = cfgRef.current;
-    for (const o of objects) {
+    for (const o of LC_OBJECTS) {
       const age = Math.max(0, day - o.created);
       const tier = tierOf(age, ia, gl, ex);
       const prev = prevTiers.current[o.id];
@@ -1032,9 +1090,13 @@ function LifecycleUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps)
           logged.current[o.id] = true;
           push(`DAY ${day} — ${o.key} EXPIRED → deleted forever (rule: expire @ ${ex}d)`, "danger");
         } else if (tier === "GLACIER") {
-          push(`DAY ${day} — ${o.key} → GLACIER ($0.004/GB — 83% cheaper)`, "mint");
+          const from = monthCost(o.sizeGB, "IA");
+          const to = monthCost(o.sizeGB, "GLACIER");
+          push(`DAY ${day} — ${o.key} → GLACIER — $${from.toFixed(2)}/MO → $${to.toFixed(2)}/MO (−68%)`, "mint");
         } else if (tier === "IA") {
-          push(`DAY ${day} — ${o.key} → STANDARD_IA ($0.0125/GB — 46% cheaper)`, "neon");
+          const from = monthCost(o.sizeGB, "STANDARD");
+          const to = monthCost(o.sizeGB, "IA");
+          push(`DAY ${day} — ${o.key} → STANDARD_IA — $${from.toFixed(2)}/MO → $${to.toFixed(2)}/MO (−46%)`, "neon");
         }
         prevTiers.current[o.id] = tier;
       }
@@ -1044,24 +1106,17 @@ function LifecycleUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps)
   const reset = () => {
     setRunning(false);
     setDay(0);
-    setObjects(mkObjects());
     setLines([]);
     prevTiers.current = {};
     logged.current = {};
   };
 
-  const alive = objects.filter((o) => {
-    const tier = tierOf(Math.max(0, day - o.created), iaDay, glacDay, expireDay);
-    return tier !== "EXPIRED";
-  });
-  const expired = objects.length - alive.length;
-  const avgCost = alive.length
-    ? alive.reduce((acc, o) => {
-        const tier = tierOf(Math.max(0, day - o.created), iaDay, glacDay, expireDay);
-        return acc + LC_COST[tier as LcTier];
-      }, 0) / alive.length
-    : LC_COST.STANDARD;
-  const saving = Math.max(0, Math.round((1 - avgCost / LC_COST.STANDARD) * 100));
+  const tierNow = (o: LcObj) => tierOf(Math.max(0, day - o.created), iaDay, glacDay, expireDay);
+  const alive = LC_OBJECTS.filter((o) => tierNow(o) !== "EXPIRED");
+  const expired = LC_OBJECTS.length - alive.length;
+  const bill = alive.reduce((s, o) => s + monthCost(o.sizeGB, tierNow(o) as LcTier), 0);
+  const stdBill = alive.reduce((s, o) => s + o.sizeGB * LC_COST.STANDARD, 0);
+  const saving = stdBill > 0 ? Math.round((1 - bill / stdBill) * 100) : 0;
 
   const setGlacSafe = (v: number) => {
     const clamped = Math.max(iaDay + 30, Math.min(700, v));
@@ -1080,7 +1135,7 @@ function LifecycleUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps)
           <UCStat label="DAY" value={day} />
           <UCStat label="OBJECTS ALIVE" value={alive.length} tone="mint" />
           <UCStat label="EXPIRED" value={expired} tone={expired ? "danger" : "neutral"} />
-          <UCStat label="AVG $/GB-MO" value={`$${avgCost.toFixed(4)}`} tone="aws" />
+          <UCStat label="MONTHLY BILL" value={`$${bill.toFixed(2)}`} tone={saving >= 40 ? "mint" : "aws"} />
           <UCStat label="SAVING VS STANDARD" value={`${saving}%`} tone={saving >= 40 ? "mint" : "neutral"} />
           <UCStat label="RULE" value={`IA ${iaDay}d · GL ${glacDay}d · EXP ${expireDay}d`} tone="neutral" />
         </>
@@ -1104,47 +1159,99 @@ function LifecycleUseCase({ immersiveActive, immersiveToggle }: S3UseCasesProps)
       logEmpty="PRESS RUN — WATCH OBJECTS AGE INTO CHEAPER TIERS"
     >
       <FlowCanvas ariaLabel="S3 lifecycle use case diagram" className="h-full">
-        {/* tier bands */}
-        <div className="absolute left-[6%] right-[6%] top-[30%] bottom-[26%] border border-foreground/10 bg-black/30" aria-hidden="true">
-          {[
-            { d: iaDay, cls: "border-neon/50", label: "IA", lcls: "text-neon" },
-            { d: glacDay, cls: "border-mint/50", label: "GLACIER", lcls: "text-mint" },
-            { d: expireDay, cls: "border-danger/50", label: "EXPIRE", lcls: "text-danger" },
-          ].map((b) => (
-            <div key={b.label} className="absolute top-0 bottom-0 border-l border-dashed" style={{ left: `${Math.min(100, (b.d / 730) * 100)}%` }}>
-              <span className={`absolute -top-4 -left-4 text-[6.5px] font-extrabold tracking-[0.15em] ${b.lcls}`}>{b.label}</span>
-            </div>
-          ))}
-          {/* object dots */}
-          {objects.map((o) => {
+        <FlowLabel x={50} y={14} tone="aws">3 OBJECTS AGING — WATCH THE BILL SHRINK</FlowLabel>
+
+        {/* object cards — title · size · tier · live monthly cost */}
+        <div className="absolute left-[4%] right-[4%] top-[21%] bottom-[15%] flex flex-col justify-center gap-2.5 z-10">
+          {LC_OBJECTS.map((o, i) => {
             const age = Math.max(0, day - o.created);
             const tier = tierOf(age, iaDay, glacDay, expireDay);
-            const left = Math.min(99.4, (Math.min(age, 730) / 730) * 100);
+            const isExpired = tier === "EXPIRED";
+            const monthly = isExpired ? 0 : monthCost(o.sizeGB, tier as LcTier);
+            const rate = isExpired ? 0 : LC_COST[tier as LcTier];
+            const meta = LC_TIER_CLS[tier];
+            const Icon = LC_ICONS[i];
+            const pctAge = Math.min(100, (age / 730) * 100);
+            /* derived drop chip — an object "just" transitioned when sim time
+               is within ~4 ticks (36d) past its rule threshold for that tier */
+            const sinceIa = day - (o.created + iaDay);
+            const sinceGl = day - (o.created + glacDay);
+            const drop = !isExpired && sinceGl >= 0 && sinceGl <= 36 ? 68 : !isExpired && sinceIa >= 0 && sinceIa <= 36 ? 46 : undefined;
             return (
               <motion.div
                 key={o.id}
-                className="absolute w-[7px] h-[7px] border"
-                style={{ left: `${left}%`, top: `${18 + ((o.id * 37) % 64)}%` }}
-                animate={{ opacity: tier === "EXPIRED" ? 0.15 : 1 }}
-                transition={{ duration: 0.5 }}
+                initial={{ opacity: 0, x: -18 }}
+                animate={{ opacity: isExpired ? 0.45 : 1, x: 0 }}
+                transition={{ delay: 0.15 + i * 0.12, duration: 0.45 }}
+                className="glass-inset cyber-cut-sm px-2.5 py-2 flex flex-col gap-1.5"
               >
-                <div className={`w-full h-full ${LC_TIER_CLS[tier].split(" ").filter((c) => c.startsWith("bg-"))[0] ?? "bg-aws/20"} border ${LC_TIER_CLS[tier].split(" ").filter((c) => c.startsWith("border-"))[0] ?? "border-aws/50"}`} />
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isExpired ? "text-danger" : meta.split(" ")[0]}`} />
+                  <span className={`text-[9px] font-bold tracking-wider text-foreground/90 truncate ${isExpired ? "line-through decoration-danger/70" : ""}`}>
+                    {o.key}
+                  </span>
+                  <span className="text-[7.5px] font-bold tabular-nums text-muted-foreground shrink-0">{fmtSize(o.sizeGB)}</span>
+                  <span className={`ml-auto shrink-0 text-[6.5px] font-extrabold px-1.5 py-0.5 border tracking-[0.15em] ${meta}`}>
+                    {isExpired ? "EXPIRED" : tier === "IA" ? "STANDARD_IA" : tier}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 min-w-0">
+                  {isExpired ? (
+                    <span className="text-sm font-extrabold tracking-wider text-danger">DELETED</span>
+                  ) : (
+                    <AnimatedMoney value={monthly} />
+                  )}
+                  <span className="text-[7px] text-muted-foreground tabular-nums shrink-0">
+                    {isExpired ? "— removed from the bill" : `/MO @ $${rate.toFixed(4)}/GB`}
+                  </span>
+                  <AnimatePresence>
+                    {drop && !isExpired && (
+                      <motion.span
+                        key={drop}
+                        initial={{ opacity: 0, scale: 0.7, y: 4 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        className="text-[7px] font-extrabold text-mint border border-mint/60 bg-mint/10 px-1 py-0.5 tracking-[0.12em] shrink-0"
+                      >
+                        ▼ {drop}% /MO
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                  <span className="ml-auto text-[7px] font-bold tabular-nums text-aws shrink-0">AGE {age}d</span>
+                </div>
+                {/* age progress vs lifecycle rule thresholds */}
+                <div className="relative h-1.5 bg-black/60 border border-foreground/10">
+                  <motion.div
+                    className={`h-full ${isExpired ? "bg-danger" : LC_BAR_CLS[tier as LcTier]}`}
+                    animate={{ width: `${pctAge}%` }}
+                    transition={{ duration: 0.35, ease: "linear" }}
+                  />
+                  {[
+                    { d: iaDay, cls: "bg-neon" },
+                    { d: glacDay, cls: "bg-mint" },
+                    { d: expireDay, cls: "bg-danger" },
+                  ].map((t) => (
+                    <span
+                      key={t.cls}
+                      className={`absolute -top-[2px] -bottom-[2px] w-[2px] opacity-70 ${t.cls}`}
+                      style={{ left: `${Math.min(100, (t.d / 730) * 100)}%` }}
+                      aria-hidden="true"
+                    />
+                  ))}
+                </div>
               </motion.div>
             );
           })}
         </div>
 
-        <FlowLabel x={50} y={14} tone="aws">OBJECT AGE → STORAGE CLASS — SET ONCE, SAVES FOREVER</FlowLabel>
-        <FlowLabel x={30} y={86.5} tone="default">DAY 0</FlowLabel>
-        <FlowLabel x={72} y={86.5} tone="default">DAY 730</FlowLabel>
-        <div className="absolute bottom-[9%] left-[6%] right-[6%] flex flex-wrap justify-center gap-1.5 z-10">
+        <div className="absolute bottom-[5%] left-[6%] right-[6%] flex flex-wrap justify-center gap-1.5 z-10">
           {(["STANDARD", "IA", "GLACIER", "EXPIRED"] as const).map((t) => (
             <span key={t} className={`text-[6.5px] font-bold border px-1.5 py-0.5 tracking-[0.15em] ${LC_TIER_CLS[t]}`}>
               {t === "STANDARD" ? "STANDARD $0.023" : t === "IA" ? "STANDARD_IA $0.0125" : t === "GLACIER" ? "GLACIER $0.004" : "EXPIRED"}
             </span>
           ))}
         </div>
-        <StepBadge step={Math.min(3, Math.floor(day / 240))} total={4} text={day >= 420 ? "EXPiring ZONE" : day >= 180 ? "GLACIER ZONE" : day >= 45 ? "IA ZONE" : "HOT ZONE"} />
+        <StepBadge step={Math.min(3, Math.floor(day / 240))} total={4} text={day >= 420 ? "EXPIRE ZONE" : day >= 180 ? "GLACIER ZONE" : day >= 45 ? "IA ZONE" : "HOT ZONE"} />
       </FlowCanvas>
 
       <UseCaseNote>

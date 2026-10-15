@@ -1031,3 +1031,67 @@ Work Log:
 
 Stage Summary:
 - Module loading state is now exactly the previous layout with the square spinner replaced by the user's hexagon morph animation: no blur layer behind it, no card around it, 900ms min-display preserved via clean loader→module swap across all 15 services
+
+---
+Task ID: 28
+Agent: main (orchestrator)
+Task: S3 FLOW VIEW — square curves for lifecycle arrows, move STORAGE CLASS PRICING card inside the view, bigger text
+
+Work Log:
+- s3.tsx lifecycle connectors: replaced the 4 ellipse (cubic-bezier) paths with square elbow routes (L segments + small Q rounded corners, r≈1.1 units) — bucket→STANDARD drop now steps right-angle, and the three tier→tier links (STANDARD→IA→GLACIER→DEEP_ARCHIVE) are square brackets bulging left; endpoints unchanged so dots/flash wiring untouched
+- Moved the STORAGE CLASS PRICING // $ PER GB-MONTH GlassPanel out of the right rail and into the FlowCanvas as a glass-inset HUD card (pointer-events-none, z-[6]) in the empty bottom-right quadrant (left 73.5%, top 55%, w-170px mobile / 224px sm+); full title preserved as two lines ("STORAGE CLASS PRICING" + "// $ PER GB-MONTH" — string-wrapped to satisfy react/jsx-no-comment-textnodes)
+- Text bumped ~30–40%: tier names/prices 6.5px → 8px mobile / 9px sm+, title 7.5/9px, bars h-2/2.5, price column right-aligned tabular-nums; RECENT OBJECTS rail delay retimed to 0.15
+- Responsive geometry verified mathematically + empirically: card avoids replica bucket (bottom ~31%), tier rows (right edge ~47% mobile) and ≥ DAYS labels on 330px canvas (label right edge 157px == card left edge 157px, 0 overlap) and desktop 772px
+- Verification: tsc → 0 project errors; lint → exit 0 (after comment-textnode fix); browser E2E desktop + 390px mobile: DOM shows pricingInside=true, railPanels=[FLOW VIEW, LIVE STATS, CONTROLS, RECENT OBJECTS] (pricing gone from rail), rendered paths = 4 Q-elbows + 0 C-curves; sim run (day 1410, 42 objects, 30 replicas) with dots traveling elbows and tier flash intact; overlap scan vs replica/tier rows/labels = []; zero page errors; dev.log clean
+- Screenshots: /home/z/shots/t28-flow-running.png (top half, card in canvas), t28-flow-tiers.png (square elbows + in-view pricing card, desktop), t28-mobile-flow.png (390px)
+
+Stage Summary:
+- S3 FLOW VIEW now routes lifecycle arrows as square elbow curves (no ellipse beziers), the storage-class pricing card lives inside the flow canvas with larger readable text, right rail slimmed to LIVE STATS / CONTROLS / RECENT OBJECTS; sim behavior and all prior features intact (tsc/lint zero, E2E verified desktop+mobile)
+
+---
+Task ID: 29
+Agent: main (orchestrator)
+Task: S3 FLOW VIEW — fix "STORAGE CLASS LIFECYCLE" label overlapping the connector line + further enhance lifecycle lines
+
+Work Log:
+- Root cause: bucket→STANDARD elbow ran its horizontal segment at y=40.5 through the label's bounding box (label center y=39.5, bottom ≈41.1) — text sat on the line
+- Re-routed bucket→STANDARD drop lower and shorter: horizontal now at y=42.8 (9px clear of label bottom), vertical at x=17 from 43.7→45.2, arrowhead pointing down into the STANDARD row top
+- Unified the whole lifecycle chain on one x=17 column: tier brackets now start AND end at x=17 (was x=9 floating) so they tuck under the tier rows' left edges at every canvas width (row edge ranges 8.7%–16.7% across 640–1400px canvases; fixed-17 always lands inside the row footprint); each bracket gains a final down-tick (corner r≈1.2) with arrowhead dropping into the next row's top edge
+- Enhancement: strokeWidth 1 → 1.4 on all four lifecycle links + showArrow on all four (directional flow even in idle state); traveling packet dots and tierFlash wiring unchanged
+- Verification: tsc → 0 project errors; lint → exit 0; browser E2E: 4 arrowheads rendered & positioned, min gap label↔elbow = 9px (was overlap), sim run day 840/24 objects shows orange dashes + packet traveling the square route and arrow into STANDARD_IA on tier transition; mobile 390px brackets/labels/pricing card all clear; zero page errors; dev.log clean
+- Screenshots: /home/z/shots/t29-desktop-elbows.png (label clear + arrows idle), t29-tiers-zoom.png (flowing bracket mid-transition), t29-mobile.png (390px)
+
+Stage Summary:
+- Lifecycle arrows now: square elbow geometry tucking under tier rows on one aligned column, down-pointing arrowheads into each target row, heavier 1.4 stroke, and complete clearance from the STORAGE CLASS LIFECYCLE label at all breakpoints; sim behavior unchanged (tsc/lint zero, E2E verified)
+
+---
+Task ID: 30
+Agent: main (orchestrator)
+Task: S3 use-case tabs — fix broken STATIC HOSTING animation, BUCKET POLICY BEST USE card collision, rebuild LIFECYCLE tab as 3 cost-tracking object cards
+
+Work Log:
+- HOSTING: (1) third FlowLink previously ended in dead space — retargeted into the browser mock's top-left corner (M58,57.5 → 62.5,69.5); (2) scenario runner no longer re-fires the 3 initial asset loads on cycle wrap (guarded via pageRef) — index.html/css/js log lines appear exactly once; (3) steps 3-5 "BROWSING" now do real work: randomized ASSET_REQS pool (hero.webp, favicon, woff2, robots.txt…) pushes log lines + increments FILES SERVED + fires a mint ping dot on the browser chrome; (4) browser mock chrome gained a live "{served} REQ" counter + pulsing LIVE dot
+- POLICY: BEST USE note (absolute top-right overlay) covered the VISUAL GRANT MAP header — added `inline` variant to shared UseCaseNote (reserved in-flow row, hidden on mobile like the overlay) and restructured the POLICY stage into a flex column: note row shrink-0 + grid flex-1 min-h-0; measured overlapX 368px / overlapY 0 (was both >0)
+- LIFECYCLE: replaced the 16-dot age band with 3 fixed object cards (media/hero-4k.mp4 2.4TB created d0, img/catalog-2024.zip 640GB created d140, logs/app-events.json 90GB created d300). Each card: icon + key + size + tier badge + spring-tweened AnimatedMoney monthly total (sizeGB × tier rate) + rate readout + AGE + age progress bar with IA/GLACIER/EXPIRE threshold ticks; cost visibly counts down on each tier transition ($56.58 → $30.75 → $9.84 for the 2.4TB object); mint "▼ 46%/68% /MO" chip derived from sim time (no setState in effect — lint-clean) appears within 4 ticks of crossing a rule threshold; EXPIRED cards dim + strikethrough + DELETED and drop out of the bill; log lines now narrate exact cost drops; LIVE STATS swapped AVG $/GB-MO → MONTHLY BILL (size-weighted)
+- housekeeping: removed unused LC_KEYS/mkObjects; added Video icon + useSpring/useTransform imports; fixed "EXPiring ZONE" typo → "EXPIRE ZONE"
+- Verification: tsc → 0 errors; lint → exit 0 (after replacing armDrop setState-in-effect with derived chip); E2E: hosting log shows index.html exactly once + 4 varied asset lines + "7 REQ" chip live; policy overlapY=0; lifecycle cards verified at d0 (56.58/14.72/2.07), mid-run day 234 (GLACIER $9.84, IA $8.01, STANDARD $2.07, BILL $19.91, SAVING 73%) and end-state day 648 (2 EXPIRED → DELETED, bill $0.36, 83% saving); reset clears log (directly tested); mobile 390px cards stack with 0 overlap 0 overflow; zero page errors; dev.log clean
+- Screenshots: /home/z/shots/t30-hosting-after.png, t30-policy-after.png (no collision), t30-lifecycle-mid.png (cards mid-run), t30-lifecycle-after.png (expired end-state), t30-lifecycle-mobile.png (390px)
+
+Stage Summary:
+- All three reported S3 use-case tab defects fixed: hosting animation is now continuously alive with correct link routing and non-repeating logs, the policy BEST USE card sits in its own reserved row instead of overlapping the grant map, and the lifecycle tab tells the cost-autopilot story with 3 concrete object cards whose monthly cost visibly counts down at every tier transition and zeroes out on expiry
+
+---
+Task ID: 31
+Agent: main (orchestrator)
+Task: S3 BUCKET POLICY — JSON TO VISUAL tab — remove both BEST USE cards
+
+Work Log:
+- Removed the inline UseCaseNote row ("POLICIES ARE THE SECURITY PERIMETER…") added in Task 30 from the top of the POLICY stage flex column
+- Removed the floating overlay UseCaseNote (absolute right-2 top-2) that rendered inside the stage after VerdictFlash — the tab now has zero BEST USE cards; the freed row returns ~26px of height to the JSON editor / grant map grid
+- UseCaseNote import kept (still used by other S3 tabs); no other tabs touched
+- Verification: tsc → 0 project errors; lint → exit 0; browser E2E: stage-scoped scan shows bestUseCards=0, overlapCount=0, stageOverflow=0 (desktop 1440×900); JSON editor→Deny policy→SIMULATE REQUEST round-trip works (Deny tile + IF aws:SecureTransport condition chip + verdict in log all render); mobile 390×844: bestUse=0, overlaps=0, overflow=0; zero page errors; dev.log clean
+- Screenshots: /home/z/shots/t31-policy-desktop.png, t31-policy-mobile.png
+- Note: page has TWO scanlines containers (module tab wrapper + use-case stage) — stage-scoped assertions must target stages[1] (lesson learned for future E2E scans)
+
+Stage Summary:
+- BUCKET POLICY — JSON TO VISUAL stage is now free of both BEST USE note cards (inline row + floating overlay removed); editor and visual grant map each gained vertical space; interactivity and layout verified clean on desktop and mobile

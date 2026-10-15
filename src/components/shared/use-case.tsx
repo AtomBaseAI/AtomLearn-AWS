@@ -354,13 +354,25 @@ export function StepBadge({ step, total, text }: { step: number; total: number; 
 /* UseCaseNote — one-line "why this matters" strip (top-right stage)   */
 /* ------------------------------------------------------------------ */
 
-export function UseCaseNote({ children }: { children: React.ReactNode }) {
+export function UseCaseNote({ children, inline = false }: { children: React.ReactNode; inline?: boolean }) {
+  const body = (
+    <p className="text-[7.5px] leading-relaxed text-muted-foreground tracking-wider uppercase">
+      <span className="text-aws font-extrabold">BEST USE · </span>
+      {children}
+    </p>
+  );
+  /* inline variant: a reserved (non-overlay) row — for stages whose children
+     fill the full stage area and would collide with the floating card */
+  if (inline) {
+    return (
+      <div className="shrink-0 hidden sm:flex items-start justify-end px-3 pt-2 z-20">
+        <div className="glass-inset cyber-cut-sm px-2 py-1.5">{body}</div>
+      </div>
+    );
+  }
   return (
     <div className="absolute right-2 top-2 z-20 max-w-[46%] glass-inset cyber-cut-sm px-2 py-1.5 hidden sm:block">
-      <p className="text-[7.5px] leading-relaxed text-muted-foreground tracking-wider uppercase">
-        <span className="text-aws font-extrabold">BEST USE · </span>
-        {children}
-      </p>
+      {body}
     </div>
   );
 }

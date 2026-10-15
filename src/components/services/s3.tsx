@@ -242,10 +242,10 @@ export default function S3Visualizer() {
             {/* LINKS */}
             <FlowLink d="M14,11 C22,11 24,15 29,19" status={prodActive ? "flowing" : "idle"} dotDuration={1.2} />
             <FlowLink d="M50,21 C62,21 63,21 74,21" dashed status={replActive ? "flowing" : "idle"} dotDuration={1.4} />
-            <FlowLink d="M27,40.5 C24,42.5 20,44 17,45.8" status={prodActive ? "flowing" : "idle"} dotDuration={1.6} dotDelay={0.3} />
-            <FlowLink d="M9,51 C6,52.5 6,54 9,55.5" status={tierFlash === "STANDARD_IA" ? "flowing" : "idle"} dotDuration={0.9} />
-            <FlowLink d="M9,63.5 C6,65 6,66.5 9,68" status={tierFlash === "GLACIER" ? "flowing" : "idle"} dotDuration={0.9} />
-            <FlowLink d="M9,76 C6,77.5 6,79 9,80.5" status={tierFlash === "DEEP_ARCHIVE" ? "flowing" : "idle"} dotDuration={0.9} />
+            <FlowLink d="M27,42.8 L17.9,42.8 Q17,42.8 17,43.7 L17,45.2" status={prodActive ? "flowing" : "idle"} dotDuration={1.6} dotDelay={0.3} strokeWidth={1.4} showArrow />
+            <FlowLink d="M17,51 L7.1,51 Q6,51 6,52.1 L6,54.3 Q6,55.5 7.2,55.5 L15.8,55.5 Q17,55.5 17,56.7 L17,57.4" status={tierFlash === "STANDARD_IA" ? "flowing" : "idle"} dotDuration={0.9} strokeWidth={1.4} showArrow />
+            <FlowLink d="M17,63.5 L7.1,63.5 Q6,63.5 6,64.6 L6,66.8 Q6,68 7.2,68 L15.8,68 Q17,68 17,69.2 L17,69.9" status={tierFlash === "GLACIER" ? "flowing" : "idle"} dotDuration={0.9} strokeWidth={1.4} showArrow />
+            <FlowLink d="M17,76 L7.1,76 Q6,76 6,77.1 L6,79.3 Q6,80.5 7.2,80.5 L15.8,80.5 Q17,80.5 17,81.7 L17,82.4" status={tierFlash === "DEEP_ARCHIVE" ? "flowing" : "idle"} dotDuration={0.9} strokeWidth={1.4} showArrow />
 
             {/* UPLOADS PRODUCER */}
             <FlowNode
@@ -426,6 +426,40 @@ export default function S3Visualizer() {
             <FlowLabel x={37} y={52.5} tone="default">{"≥ 90 DAYS"}</FlowLabel>
             <FlowLabel x={37} y={65} tone="default">{"≥ 180 DAYS"}</FlowLabel>
             <FlowLabel x={37} y={77.5} tone="default">{"≥ 365 DAYS"}</FlowLabel>
+
+            {/* STORAGE CLASS PRICING — in-canvas HUD card (bottom-right empty quadrant) */}
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.65, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 z-[6] pointer-events-none"
+              style={{ left: "73.5%", top: "55%" }}
+            >
+              <div className="glass-inset cyber-cut-sm p-2 sm:p-2.5 w-[170px] sm:w-[224px]">
+                <p className="text-[7.5px] sm:text-[9px] font-bold uppercase tracking-[0.14em] text-aws leading-tight">
+                  STORAGE CLASS PRICING
+                  <span className="block text-[6.5px] sm:text-[8px] text-muted-foreground tracking-[0.18em] mt-0.5">{"// $ PER GB-MONTH"}</span>
+                </p>
+                <div className="mt-1.5 sm:mt-2 flex flex-col gap-1 sm:gap-1.5">
+                  {TIER_ORDER.map((t) => (
+                    <div key={t} className="flex items-center gap-1.5 sm:gap-2">
+                      <span className={`text-[8px] sm:text-[9px] font-bold w-[64px] sm:w-[84px] shrink-0 tracking-wider ${TIER_META[t].cls}`}>{t}</span>
+                      <div className="flex-1 h-2 sm:h-2.5 bg-black/50 border border-foreground/10">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(TIER_COST[t] / TIER_COST.STANDARD) * 100}%` }}
+                          transition={{ duration: 1, delay: 1 }}
+                          className={`h-full ${TIER_META[t].bar} opacity-80`}
+                        />
+                      </div>
+                      <span className="text-[8px] sm:text-[9px] font-extrabold text-foreground/80 w-[40px] sm:w-[52px] text-right tabular-nums">
+                        ${TIER_COST[t].toFixed(5)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
           </FlowCanvas>
         </GlassPanel>
 
@@ -489,32 +523,7 @@ export default function S3Visualizer() {
             </div>
           </GlassPanel>
 
-          <GlassPanel title="STORAGE CLASS PRICING // $ PER GB-MONTH" className="!p-0" delay={0.15}>
-            <div className="p-3">
-              <div className="glass-inset cyber-cut-sm p-2">
-                <div className="flex flex-col gap-1.5">
-                  {TIER_ORDER.map((t) => (
-                    <div key={t} className="flex items-center gap-1.5">
-                      <span className={`text-[6.5px] font-bold w-[74px] shrink-0 tracking-wider ${TIER_META[t].cls}`}>{t}</span>
-                      <div className="flex-1 h-2 bg-black/50 border border-foreground/10">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(TIER_COST[t] / TIER_COST.STANDARD) * 100}%` }}
-                          transition={{ duration: 1, delay: 0.9 }}
-                          className={`h-full ${TIER_META[t].bar} opacity-80`}
-                        />
-                      </div>
-                      <span className="text-[6.5px] font-extrabold text-foreground/80 w-[46px] text-right">
-                        ${TIER_COST[t].toFixed(5)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </GlassPanel>
-
-          <GlassPanel title="RECENT OBJECTS" className="!p-0" delay={0.2}>
+          <GlassPanel title="RECENT OBJECTS" className="!p-0" delay={0.15}>
             <div className="p-3">
               <div className="glass-inset p-2.5 max-h-40 overflow-y-auto cyber-scroll flex flex-col gap-1">
                 {objects.slice(-8).map((o) => (
